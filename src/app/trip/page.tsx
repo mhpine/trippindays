@@ -43,6 +43,9 @@ export default function TripPage() {
   const [destination, setDestination] = useState("");
   const [summary, setSummary] = useState("");
   const [whySelected, setWhySelected] = useState<string[]>([]);
+  const [musicSuggestions, setMusicSuggestions] = useState<
+  { title: string; artist: string; reason: string }[]
+>([]);
   const [adventures, setAdventures] = useState<AdventureOption[]>([]);
   const [liveChecks, setLiveChecks] = useState<LiveChecks | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -101,6 +104,9 @@ export default function TripPage() {
       setSummary(data.summary || "");
       setWhySelected(Array.isArray(data.whySelected) ? data.whySelected : []);
       setAdventures(Array.isArray(data.adventures) ? data.adventures : []);
+      setMusicSuggestions(
+  Array.isArray(data.musicSuggestions) ? data.musicSuggestions : []
+);
       setLiveChecks(data.liveChecks || null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not build your trip.");
@@ -318,6 +324,40 @@ function openRoadConditions() {
 
         {!isLoading && !error && aiPlan && (
           <>
+          {musicSuggestions?.length > 0 && (
+  <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
+    <div className="text-3xl">🎵</div>
+
+    <h3 className="mt-3 text-xl font-black">
+      Music for the Trip
+    </h3>
+
+    <p className="mt-2 text-sm text-white/60">
+      A few songs to match the mood of your adventure.
+    </p>
+
+    <div className="mt-4 space-y-3">
+      {musicSuggestions.map((song, index) => (
+        <div
+          key={index}
+          className="rounded-2xl border border-white/10 bg-white/5 p-4"
+        >
+          <p className="font-black">
+            {song.title}
+          </p>
+
+          <p className="text-sm text-cyan-300">
+            {song.artist}
+          </p>
+
+          <p className="mt-2 text-sm text-white/60">
+            {song.reason}
+          </p>
+        </div>
+      ))}
+    </div>
+  </section>
+)}
             <section className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-blue-700 via-sky-700 to-slate-950 p-8 shadow-2xl">
               <p className="text-sm font-black uppercase tracking-[0.25em] text-sky-200">
                 Your itinerary is ready

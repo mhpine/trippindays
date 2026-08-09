@@ -536,7 +536,11 @@ Important:
       firstBrace,
       lastBrace + 1
     );
-
+type MusicSuggestion = {
+  title: string;
+  artist: string;
+  reason: string;
+};
     // Remove common Gemini JSON mistakes.
     jsonOnly = jsonOnly
       .replace(/,\s*}/g, "}")
