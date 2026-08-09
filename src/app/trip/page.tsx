@@ -107,6 +107,9 @@ export default function TripPage() {
       setMusicSuggestions(
   Array.isArray(data.musicSuggestions) ? data.musicSuggestions : []
 );
+      setMusicSuggestions(
+  Array.isArray(data.musicSuggestions) ? data.musicSuggestions : []
+);
       setLiveChecks(data.liveChecks || null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not build your trip.");
