@@ -90,7 +90,7 @@ export default function FeedbackPage() {
     <section
   className="relative h-[42vh] min-h-[380px] overflow-hidden"
   style={{
-    backgroundImage: "url('/images/lighthouse1.png')",
+    backgroundImage: "url('/images/lighthouse1.jpg')",
     backgroundSize: "90%",
     backgroundPosition: "center 45%",
     backgroundRepeat: "no-repeat",
