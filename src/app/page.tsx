@@ -173,7 +173,7 @@ ${tripRequest}
     PACK.
   </span>
 
- <span className="mt-2 ml-20 md:ml-40 block text-cyan-300">
+ <span className="mt-2 ml-28 md:ml-40 block text-cyan-300">
   GO.
 </span>
 </h1>
