@@ -38,10 +38,11 @@ type Section = {
 
 export default function TripPage() {
   const [request, setRequest] = useState("");
-  const [aiPlan, setAiPlan] = useState("");
+ const [aiPlan, setAiPlan] = useState<any>(null);
   const [tripTitle, setTripTitle] = useState("");
   const [destination, setDestination] = useState("");
   const [summary, setSummary] = useState("");
+  const [roundTripMiles, setRoundTripMiles] = useState<number | null>(null);
   const [whySelected, setWhySelected] = useState<string[]>([]);
   const [musicSuggestions, setMusicSuggestions] = useState<
   { title: string; artist: string; reason: string }[]
@@ -102,6 +103,11 @@ export default function TripPage() {
       setTripTitle(data.title || "Your TrippinDays Adventure");
       setDestination(data.destination || "");
       setSummary(data.summary || "");
+      setRoundTripMiles(
+  typeof data.roundTripMiles === "number"
+    ? data.roundTripMiles
+    : null
+);
       setWhySelected(Array.isArray(data.whySelected) ? data.whySelected : []);
       setAdventures(Array.isArray(data.adventures) ? data.adventures : []);
       setMusicSuggestions(
@@ -321,7 +327,17 @@ function openRoadConditions() {
             </a>
           </section>
         )}
+{roundTripMiles !== null && (
+  <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm text-center">
+    <div className="text-sm font-semibold text-gray-500">
+      🚗 ROUND TRIP
+    </div>
 
+    <div className="mt-1 text-3xl font-bold text-gray-900">
+      {Math.round(roundTripMiles)} mi
+    </div>
+  </div>
+)}
         {!isLoading && !error && aiPlan && (
           <>
   

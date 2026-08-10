@@ -500,6 +500,7 @@ Use exactly this structure:
     "reason": "One short sentence explaining why this song fits the trip"
   }
 ],
+"roundTripMiles": 123,
   "plan": "A detailed chronological itinerary containing the required TrippinDays sections, including [[LIVE_WEATHER]] exactly once."
 }
 
@@ -511,6 +512,7 @@ Important:
 - Respect the user's starting location, requested radius, available time,
   interests, and budget whenever realistically possible.
 - Clearly label mileage, drive times, prices, and costs as estimates.
+- roundTripMiles must be the estimated total driving mileage from the user's starting location through the planned trip and back to the starting location. Return it as a number only.
 - Do not claim to know live traffic, road closures, business hours,
   reservations, fuel prices, or availability unless live data was supplied.
 - weatherSearchLocation must be a real nearby city or town suitable for
