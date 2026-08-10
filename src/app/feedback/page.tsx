@@ -91,7 +91,7 @@ export default function FeedbackPage() {
   className="relative h-[42vh] min-h-[380px] overflow-hidden"
   style={{
     backgroundImage: "url('/images/lighthouse1.jpg')",
-    backgroundSize: "90%",
+    backgroundSize: "95%",
     backgroundPosition: "center 45%",
     backgroundRepeat: "no-repeat",
   }}
