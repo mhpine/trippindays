@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 type AdventureOption = {
   name: string;
   region: string;
-  emoji: string;
+  emoji: string; 
   matchScore: number;
   estimatedDriveTime: string;
   estimatedDistance: string;
@@ -327,17 +327,7 @@ function openRoadConditions() {
             </a>
           </section>
         )}
-{roundTripMiles !== null && (
-  <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm text-center">
-    <div className="text-sm font-semibold text-gray-500">
-      🚗 ROUND TRIP
-    </div>
 
-    <div className="mt-1 text-3xl font-bold text-gray-900">
-      {Math.round(roundTripMiles)} mi
-    </div>
-  </div>
-)}
         {!isLoading && !error && aiPlan && (
           <>
   
@@ -358,11 +348,16 @@ function openRoadConditions() {
               </div>
             </section>
 
-            <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <section className="mt-8 grid grid-cols-5 gap-2">
               <SummaryCard icon="🏁" label="Starting Point" value={start || "Current location"} />
               <SummaryCard icon="💵" label="Budget" value={budget} />
               <SummaryCard icon="⏱️" label="Time Available" value={time} />
               <SummaryCard icon="👥" label="Travelers" value={travelers} />
+              <SummaryCard
+  icon="🚗"
+  label="Round Trip"
+  value={roundTripMiles !== null ? `${Math.round(roundTripMiles)} mi` : "—"}
+/>
             </section>
 
             <section className="mt-8 grid gap-6 lg:grid-cols-2">

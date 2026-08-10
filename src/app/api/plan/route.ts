@@ -16,6 +16,7 @@ type AdventureOption = {
 type GeminiTrip = {
   title: string;
   selectedDestination: string;
+   roundTripMiles: number;
   weatherSearchLocation: string;
   summary: string;
   whySelected: string[];
@@ -574,9 +575,16 @@ type MusicSuggestion = {
     let trip: GeminiTrip;
 
     try {
-      trip = JSON.parse(
-        jsonOnly
-      ) as GeminiTrip;
+      const start = jsonOnly.indexOf("{");
+const end = jsonOnly.lastIndexOf("}");
+
+if (start === -1 || end === -1) {
+  throw new Error("No JSON object found in Gemini response");
+}
+
+const cleanedJson = jsonOnly.slice(start, end + 1);
+
+trip = JSON.parse(cleanedJson) as GeminiTrip;
     } catch (parseError) {
       console.error(
         "Gemini JSON parse failed:",
@@ -791,7 +799,7 @@ type MusicSuggestion = {
 
       destination:
         trip.selectedDestination,
-
+roundTripMiles: trip.roundTripMiles,
       summary: trip.summary || "",
 
       whySelected: Array.isArray(
