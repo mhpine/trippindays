@@ -233,7 +233,7 @@ export default function PassportPage() {
         className="relative min-h-[380px] overflow-hidden border-b border-white/10"
         style={{
           backgroundImage:
-            "url('/images/charts.png')",
+            "url('/images/passport1.png')",
           backgroundSize: "cover",
           backgroundPosition: "center 5%",
           backgroundRepeat: "no-repeat",
