@@ -42,7 +42,28 @@ export default function SiteHeader() {
     setSignedIn(false);
     window.location.href = "/";
   }
+function handleGetApp() {
+  const ua = navigator.userAgent.toLowerCase();
 
+  const isAndroid = ua.includes("android");
+  const isIOS =
+    /iphone|ipad|ipod/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+  if (isAndroid) {
+    window.location.href = "/downloads/TrippinDays.apk";
+    return;
+  }
+
+  if (isIOS) {
+    alert(
+      "The TrippinDays iPhone app is coming soon. For now, use TrippinDays in Safari and add it to your Home Screen."
+    );
+    return;
+  }
+
+  window.location.href = "/downloads/TrippinDays.apk";
+}
   return (
     <header className="border-b border-white/10 bg-slate-950 text-white">
       <div className="mx-auto max-w-7xl px-4 py-3">
@@ -134,13 +155,13 @@ export default function SiteHeader() {
 
           {/* MOBILE CONTROLS */}
           <div className="flex items-center gap-2 md:hidden">
-            <a
-              href="/downloads/TrippinDays.apk"
-              download
-              className="rounded-full bg-sky-500 px-3 py-2 text-sm font-bold text-white"
-            >
-              📱 Get App
-            </a>
+           <button
+  type="button"
+  onClick={handleGetApp}
+  className="rounded-full bg-sky-500 px-3 py-2 text-sm font-bold text-white"
+>
+  📱 Get App
+</button>
 
             <button
               type="button"
