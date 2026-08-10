@@ -43,17 +43,30 @@ export default function SiteHeader() {
   }
 
   return (
-    <header className="border-b border-white/10 bg-[#061426]/95 px-6 py-4 text-white">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
+    <header className="bg-slate-950 text-white">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+
+        {/* TRIPPINDAYS LOGO */}
         <a
           href="/"
-          className="text-2xl font-black tracking-tight"
+          className="shrink-0 text-2xl font-black tracking-tight"
         >
-          Trippin
-          <span className="text-sky-400">Days</span>
+          <span className="text-white">Trippin</span>
+          <span className="text-cyan-400">Days</span>
         </a>
 
+        {/* NAVIGATION */}
         <nav className="flex flex-wrap items-center gap-2">
+
+          {/* ANDROID APP DOWNLOAD */}
+          <a
+            href="/downloads/TrippinDays.apk"
+            download
+            className="relative -left-20 rounded-full bg-sky-500 px-4 py-2 font-bold text-white hover:bg-sky-400"
+          >
+            📱 Get App
+          </a>
+
           <a
             href="/"
             className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
