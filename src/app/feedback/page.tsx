@@ -88,7 +88,7 @@ export default function FeedbackPage() {
       <SiteHeader />
 
     <section
-  className="relative h-[620px] min-h-[520px] overflow-hidden"
+ className="relative min-h-[430px] sm:min-h-[520px]"
   style={{
     backgroundImage: "url('/images/lighthouse1.jpg')",
     backgroundSize: "cover",
@@ -98,7 +98,7 @@ export default function FeedbackPage() {
 >
   <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/30 to-[#061426]" />
 
-  <div className="relative mx-auto flex h-full max-w-7xl items-start px-6 pt-4 sm:px-8 sm:pt-8">
+ <div className="relative mx-auto flex min-h-[430px] max-w-7xl items-start px-6 pt-6 sm:min-h-[520px] sm:items-end sm:px-8 sm:pb-14">
     <div className="max-w-4xl">
       <p className="text-xs sm:text-sm font-black uppercase tracking-[0.35em] text-cyan-300">
         HELP US IMPROVE
