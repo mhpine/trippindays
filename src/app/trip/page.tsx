@@ -38,7 +38,7 @@ type Section = {
 
 export default function TripPage() {
   const [request, setRequest] = useState("");
- const [aiPlan, setAiPlan] = useState<any>(null);
+ const [aiPlan, setAiPlan] = useState ("");
   const [tripTitle, setTripTitle] = useState("");
   const [destination, setDestination] = useState("");
   const [summary, setSummary] = useState("");
