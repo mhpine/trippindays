@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 export default function SiteHeader() {
   const [signedIn, setSignedIn] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -43,93 +44,190 @@ export default function SiteHeader() {
   }
 
   return (
-    <header className="bg-slate-950 text-white">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+    <header className="border-b border-white/10 bg-slate-950 text-white">
+      <div className="mx-auto max-w-7xl px-4 py-3">
 
-        {/* TRIPPINDAYS LOGO */}
-        <a
-          href="/"
-          className="shrink-0 text-2xl font-black tracking-tight"
-        >
-          <span className="text-white">Trippin</span>
-          <span className="text-cyan-400">Days</span>
-        </a>
-
-        {/* NAVIGATION */}
-        <nav className="flex flex-wrap items-center gap-2">
-
-          {/* ANDROID APP DOWNLOAD */}
-          <a
-            href="/downloads/TrippinDays.apk"
-            download
-            className="relative -left-20 rounded-full bg-sky-500 px-4 py-2 font-bold text-white hover:bg-sky-400"
-          >
-            📱 Get App
-          </a>
-
+        {/* TOP ROW */}
+        <div className="flex items-center justify-between gap-3">
+          {/* LOGO */}
           <a
             href="/"
-            className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
+            className="shrink-0 text-xl font-black tracking-tight sm:text-2xl"
           >
-            Home
+            <span className="text-white">Trippin</span>
+            <span className="text-cyan-400">Days</span>
           </a>
 
-          <a
-            href="/passport"
-            className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
-          >
-            Passport
-          </a>
-
-          <a
-            href="/journal"
-            className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
-          >
-            Journal
-          </a>
-
-          <a
-            href="/community"
-            className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
-          >
-            Community
-          </a>
-
-          <a
-            href="/feedback"
-            className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
-          >
-            Feedback
-          </a>
-
-          {!loading && !signedIn && (
+          {/* DESKTOP NAV */}
+          <nav className="hidden items-center gap-2 md:flex">
             <a
-              href="/login"
-              className="rounded-full border border-white/20 px-4 py-2 font-bold hover:bg-white/10"
+              href="/downloads/TrippinDays.apk"
+              download
+              className="rounded-full bg-sky-500 px-4 py-2 font-bold text-white hover:bg-sky-400"
             >
-              Log In
+              📱 Get App
             </a>
-          )}
 
-          {!loading && signedIn && (
-            <>
+            <a
+              href="/"
+              className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
+            >
+              Home
+            </a>
+
+            <a
+              href="/passport"
+              className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
+            >
+              Passport
+            </a>
+
+            <a
+              href="/journal"
+              className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
+            >
+              Journal
+            </a>
+
+            <a
+              href="/community"
+              className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
+            >
+              Community
+            </a>
+
+            <a
+              href="/feedback"
+              className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
+            >
+              Feedback
+            </a>
+
+            {!loading && !signedIn && (
               <a
-                href="/profile"
-                className="rounded-full border border-sky-400/40 px-4 py-2 font-bold text-sky-300 hover:bg-sky-400/10"
-              >
-                My Account
-              </a>
-
-              <button
-                type="button"
-                onClick={() => void logOut()}
+                href="/login"
                 className="rounded-full border border-white/20 px-4 py-2 font-bold hover:bg-white/10"
               >
-                Log Out
-              </button>
-            </>
-          )}
-        </nav>
+                Log In
+              </a>
+            )}
+
+            {!loading && signedIn && (
+              <>
+                <a
+                  href="/profile"
+                  className="rounded-full border border-sky-400/40 px-4 py-2 font-bold text-sky-300 hover:bg-sky-400/10"
+                >
+                  My Account
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => void logOut()}
+                  className="rounded-full border border-white/20 px-4 py-2 font-bold hover:bg-white/10"
+                >
+                  Log Out
+                </button>
+              </>
+            )}
+          </nav>
+
+          {/* MOBILE CONTROLS */}
+          <div className="flex items-center gap-2 md:hidden">
+            <a
+              href="/downloads/TrippinDays.apk"
+              download
+              className="rounded-full bg-sky-500 px-3 py-2 text-sm font-bold text-white"
+            >
+              📱 Get App
+            </a>
+
+            <button
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              className="rounded-full border border-white/20 px-3 py-2 text-xl font-bold"
+              aria-label="Open navigation menu"
+              aria-expanded={menuOpen}
+            >
+              ☰
+            </button>
+          </div>
+        </div>
+
+        {/* MOBILE MENU */}
+        {menuOpen && (
+          <nav className="mt-3 grid gap-2 border-t border-white/10 pt-3 md:hidden">
+            <a
+              href="/"
+              onClick={() => setMenuOpen(false)}
+              className="rounded-xl px-4 py-3 font-bold hover:bg-white/10"
+            >
+              Home
+            </a>
+
+            <a
+              href="/passport"
+              onClick={() => setMenuOpen(false)}
+              className="rounded-xl px-4 py-3 font-bold hover:bg-white/10"
+            >
+              Passport
+            </a>
+
+            <a
+              href="/journal"
+              onClick={() => setMenuOpen(false)}
+              className="rounded-xl px-4 py-3 font-bold hover:bg-white/10"
+            >
+              Journal
+            </a>
+
+            <a
+              href="/community"
+              onClick={() => setMenuOpen(false)}
+              className="rounded-xl px-4 py-3 font-bold hover:bg-white/10"
+            >
+              Community
+            </a>
+
+            <a
+              href="/feedback"
+              onClick={() => setMenuOpen(false)}
+              className="rounded-xl px-4 py-3 font-bold hover:bg-white/10"
+            >
+              Feedback
+            </a>
+
+            {!loading && !signedIn && (
+              <a
+                href="/login"
+                onClick={() => setMenuOpen(false)}
+                className="rounded-xl px-4 py-3 font-bold hover:bg-white/10"
+              >
+                Log In
+              </a>
+            )}
+
+            {!loading && signedIn && (
+              <>
+                <a
+                  href="/profile"
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-xl px-4 py-3 font-bold text-sky-300 hover:bg-white/10"
+                >
+                  My Account
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => void logOut()}
+                  className="rounded-xl px-4 py-3 text-left font-bold hover:bg-white/10"
+                >
+                  Log Out
+                </button>
+              </>
+            )}
+          </nav>
+        )}
       </div>
     </header>
   );
