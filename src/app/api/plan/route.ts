@@ -20,6 +20,11 @@ type GeminiTrip = {
   summary: string;
   whySelected: string[];
   adventures: AdventureOption[];
+    musicSuggestions?: {
+    title: string;
+    artist: string;
+    reason: string;
+  }[];
   plan: string;
 };
 
@@ -185,7 +190,7 @@ Check current local weather immediately before departure.
     );
   }
 
-  lines.push(
+  lines.push( 
     "",
     "Weather was checked by TrippinDays using live forecast data. Conditions can change, especially in mountain and coastal areas."
   );
@@ -478,6 +483,23 @@ Use exactly this structure:
       "reason": "Short explanation of why it fits"
     }
   ],
+  "musicSuggestions": [
+  {
+    "title": "Song title",
+    "artist": "Artist name",
+    "reason": "One short sentence explaining why this song fits the trip"
+  },
+  {
+    "title": "Song title",
+    "artist": "Artist name",
+    "reason": "One short sentence explaining why this song fits the trip"
+  },
+  {
+    "title": "Song title",
+    "artist": "Artist name",
+    "reason": "One short sentence explaining why this song fits the trip"
+  }
+],
   "plan": "A detailed chronological itinerary containing the required TrippinDays sections, including [[LIVE_WEATHER]] exactly once."
 }
 
@@ -498,6 +520,7 @@ Important:
 - Restaurants, Gas / Fuel, Road Conditions, Live Weather,
   Nearest Hospital, and Check Before Leaving are mandatory.
 - Include [[LIVE_WEATHER]] exactly once in plan.
+- musicSuggestions must contain exactly 3 real, widely known songs with real artist names that fit the mood, destination, or style of the trip. Do not invent songs or artists.
         `,
 
         config: {
@@ -776,7 +799,9 @@ type MusicSuggestion = {
         : [],
 
       adventures,
-
+musicSuggestions: Array.isArray(trip.musicSuggestions)
+  ? trip.musicSuggestions
+  : [],
       plan: finalPlan,
 
       liveChecks,
