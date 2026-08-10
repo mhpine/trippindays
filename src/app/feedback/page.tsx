@@ -88,10 +88,10 @@ export default function FeedbackPage() {
       <SiteHeader />
 
     <section
-  className="relative h-[42vh] min-h-[380px] overflow-hidden"
+  className="relative h-[620px] min-h-[520px] overflow-hidden"
   style={{
     backgroundImage: "url('/images/lighthouse1.jpg')",
-    backgroundSize: "95%",
+    backgroundSize: "cover",
     backgroundPosition: "center 45%",
     backgroundRepeat: "no-repeat",
   }}
