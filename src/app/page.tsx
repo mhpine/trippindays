@@ -173,9 +173,9 @@ ${tripRequest}
     PACK.
   </span>
 
-  <span className="mt-2 ml-40 block text-cyan-300">
-    GO.
-  </span>
+ <span className="mt-2 ml-20 md:ml-40 block text-cyan-300">
+  GO.
+</span>
 </h1>
 
             <p className="mt-4 max-w-lg text-base leading-7 text-white/85 sm:text-lg">
