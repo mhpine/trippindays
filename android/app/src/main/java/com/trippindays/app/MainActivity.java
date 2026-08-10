@@ -3,6 +3,9 @@ package com.trippindays.app;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
+import android.webkit.WebView;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -28,5 +31,24 @@ public class MainActivity extends BridgeActivity {
                     MICROPHONE_PERMISSION_CODE
             );
         }
+
+        WebView webView = getBridge().getWebView();
+
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(final PermissionRequest request) {
+                runOnUiThread(() -> {
+                    if (ContextCompat.checkSelfPermission(
+                            MainActivity.this,
+                            Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED) {
+
+                        request.grant(request.getResources());
+                    } else {
+                        request.deny();
+                    }
+                });
+            }
+        });
     }
 }
