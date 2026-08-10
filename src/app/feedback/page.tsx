@@ -98,17 +98,17 @@ export default function FeedbackPage() {
 >
   <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/30 to-[#061426]" />
 
-  <div className="relative mx-auto flex h-full max-w-7xl items-center px-6 py-8 sm:items-end sm:px-8 sm:pb-14">
+  <div className="relative mx-auto flex h-full max-w-7xl items-start px-6 pt-4 sm:px-8 sm:pt-8">
     <div className="max-w-4xl">
-      <p className="text-sm font-black uppercase tracking-[0.35em] text-cyan-300">
+      <p className="text-xs sm:text-sm font-black uppercase tracking-[0.35em] text-cyan-300">
         HELP US IMPROVE
       </p>
 
-     <h1 className="mt-2 text-5xl font-black text-white drop-shadow-lg sm:mt-3 sm:text-6xl">
+     <h1 className="mt-2 text-5xl sm:text-6xl font-black text-white drop-shadow-lg">
         Feedback
       </h1>
 
-      <p className="mt-4 max-w-3xl text-base leading-7 text-white sm:mt-5 sm:text-xl sm:leading-8">
+     <p className="mt-3 max-w-3xl text-lg leading-7 sm:mt-5 sm:text-xl sm:leading-8 text-white">
         Help shape the future of TrippinDays. Tell us what you love,
         report bugs, suggest new features, or recommend amazing places
         travelers should discover.
