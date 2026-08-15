@@ -1,7 +1,11 @@
 "use client";
 
+
+
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+
 
 type AdventureOption = {
   name: string;
@@ -53,8 +57,50 @@ export default function TripPage() {
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+ const [isRemixing, setIsRemixing] = useState("");
+const [selectedRemixes, setSelectedRemixes] = useState<string[]>([]);
+  
+  function toggleRemix(type: string) {
+  setSelectedRemixes((current) =>
+    current.includes(type)
+      ? current.filter((item) => item !== type)
+      : [...current, type]
+  );
+}
   const started = useRef(false);
+const [user, setUser] = useState<User | null>(null);
+const [isPremium, setIsPremium] = useState(false);
+useEffect(() => {
+  const supabase = createClient();
 
+ supabase.auth.getUser().then(async ({ data }) => {
+  const currentUser = data.user ?? null;
+  setUser(currentUser);
+
+  if (!currentUser) {
+    setIsPremium(false);
+    return;
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_premium")
+    .eq("id", currentUser.id)
+    .single();
+
+  setIsPremium(profile?.is_premium === true);
+});
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    setUser(session?.user ?? null);
+  });
+
+  return () => {
+    subscription.unsubscribe();
+  };
+}, []);
   useEffect(() => {
     if (started.current) return;
     started.current = true;
@@ -141,35 +187,32 @@ ${adventure.reason}
   }
 
   async function saveTrip() {
-    if (!aiPlan.trim()) {
+   
+const supabase = createClient();
+
+const {
+  data: { session },
+} = await supabase.auth.getSession();
+
+if (!session?.user) {
+  setSaveMessage("Create a free account to save your trip.");
+ window.location.href = "/login?mode=signup&redirect=/trip";
+  return;
+}
+ if (!aiPlan.trim()) {
       setSaveMessage("Build your trip before saving it.");
       return;
     }
+try {
 
-    try {
-      setIsSaving(true);
-      setSaveMessage("");
+  const rawBudget = getValue(request, "Budget");
 
-      const supabase = createClient();
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) throw userError;
-
-      if (!user) {
-        window.location.href = "/login?redirect=/trip";
-        return;
-      }
-
-      const rawBudget = getValue(request, "Budget");
       const numericBudget = rawBudget
         ? Number(rawBudget.replace(/[^0-9.]/g, ""))
         : null;
 
       const { error: insertError } = await supabase.from("trips").insert({
-        user_id: user.id,
+        user_id: session.user.id,
         title: tripTitle.trim() || destination.trim() || "My TrippinDays Adventure",
         starting_location: start || null,
         destination: destination.trim() || null,
@@ -184,17 +227,163 @@ ${adventure.reason}
         status: "saved",
       });
 
-      if (insertError) throw insertError;
-      setSaveMessage("Adventure saved to your account!");
-    } catch (err) {
-      setSaveMessage(
-        err instanceof Error ? err.message : "The trip could not be saved."
-      );
-    } finally {
-      setIsSaving(false);
-    }
+      } catch (err) {
+  const message =
+    err instanceof Error ? err.message : "The trip could not be saved.";
+
+  if (message.toLowerCase().includes("auth session missing")) {
+    setSaveMessage("Create a free account to save your trip.");
+    return;
   }
 
+  setSaveMessage(message);
+}
+
+  }
+ async function remixTrip(remixTypes: string[]) {
+  if (!aiPlan.trim()) {
+    setSaveMessage("Build a trip before remixing it.");
+    return;
+  }
+
+ const remixInstructions: Record<string, string> = {
+  cheaper:
+    "Make this trip less expensive while keeping the best parts. Reduce unnecessary fuel, food, parking, admission, and activity costs. Favor free or low-cost alternatives.",
+
+  romantic:
+    "Remix this into a romantic adventure for a couple. Favor scenic stops, memorable meals, sunsets, intimate experiences, beautiful viewpoints, and relaxed pacing.",
+
+  hiddenGems:
+    "Remix this trip around hidden gems, unusual attractions, lesser-known viewpoints, quirky roadside stops, locally loved places, and experiences most tourists might miss.",
+
+  adventure:
+    "Make this trip more adventurous and exploratory. Add outdoor activities, interesting drives, unusual stops, hiking opportunities, and memorable experiences while staying realistic for the trip's time and budget.",
+
+  rainyDay:
+    "Remix this trip for rainy weather. Favor covered or indoor attractions, museums, scenic drives, interesting restaurants, indoor entertainment, and activities that still make the trip worthwhile in bad weather.",
+
+  familyFriendly:
+    "Remix this trip to be family friendly. Favor safe, fun, affordable activities suitable for families, reasonable driving times, accessible stops, food options, parks, attractions, and amusement parks when appropriate.",
+
+  petFriendly:
+    "Remix this trip to be pet friendly. Favor pet-friendly parks, trails, outdoor dining, lodging and attractions where appropriate. Avoid stops that generally prohibit pets and mention any likely leash or access restrictions.",
+
+  adrenalineJunkie:
+    "Remix this trip for an adrenaline seeker. Look for exciting experiences such as rafting, ziplining, climbing, mountain biking, off-road adventures, intense hikes, amusement rides, water sports, or other high-energy activities appropriate to the destination.",
+
+  nightlife:
+    "Remix this trip to include nightlife. Favor lively entertainment districts, live music, evening attractions, late-night food, comedy, dancing, bars or lounges when appropriate, and safe realistic evening transportation.",
+
+  theArts:
+    "Remix this trip around arts and culture. Favor museums, art galleries, live theater, architecture, public art, cultural districts, local music, artist communities, historic venues, and art festivals when available.",
+};
+
+ const instruction =
+  remixTypes
+    .map((type) => remixInstructions[type])
+    .filter(Boolean)
+    .join("\n\n") || "Create a fresh variation of this trip.";
+
+ try {
+  setIsRemixing(remixTypes.join(","));
+  setSaveMessage("");
+  setError("");
+    const remixRequest = `
+Starting Location: ${start || "Current location"}
+Budget: ${budget}
+Time Available: ${time}
+Travelers: ${travelers}
+
+Trip Request:
+Remix my existing TrippinDays adventure.
+
+Current Destination:
+${destination}
+
+REMIX STYLE:
+${instruction}
+
+IMPORTANT REMIX RULES:
+You MUST noticeably change this itinerary based on every selected remix style.
+Do not simply repeat the current itinerary.
+Replace or modify several stops, activities, meals, timing, or routing when appropriate.
+The new itinerary must clearly feel different while still respecting the original starting location, budget, travelers, and available time.
+
+CURRENT ITINERARY:
+${aiPlan}
+
+Important:
+Keep the trip realistic for the stated starting location, budget, travelers,
+and available time.
+
+Return a complete replacement itinerary with realistic driving times,
+distances, costs, food, activities, parking, weather considerations,
+return time, and RoadTunes music suggestions.
+    `.trim();
+
+    const response = await fetch("/api/plan", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        tripRequest: remixRequest,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not remix your trip.");
+    }
+
+    setAiPlan(data.plan || aiPlan);
+    setTripTitle(data.title || tripTitle);
+    setDestination(data.destination || destination);
+    setSummary(data.summary || summary);
+
+    setRoundTripMiles(
+      typeof data.roundTripMiles === "number"
+        ? data.roundTripMiles
+        : roundTripMiles
+    );
+
+    setWhySelected(
+      Array.isArray(data.whySelected)
+        ? data.whySelected
+        : whySelected
+    );
+
+    setAdventures(
+      Array.isArray(data.adventures)
+        ? data.adventures
+        : adventures
+    );
+
+    setMusicSuggestions(
+      Array.isArray(data.musicSuggestions)
+        ? data.musicSuggestions
+        : musicSuggestions
+    );
+
+    setLiveChecks(data.liveChecks || liveChecks);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+
+    setSaveMessage("✨ Your trip has been remixed!");
+  } catch (err) {
+    setSaveMessage(
+      err instanceof Error
+        ? err.message
+        : "Could not remix your trip."
+    );
+  } finally {
+    setIsRemixing("");
+  }
+}
   async function shareTrip() {
     try {
       const text = [tripTitle, destination, summary].filter(Boolean).join("\n\n");
@@ -212,8 +401,9 @@ ${adventure.reason}
     } catch {
       setSaveMessage("Sharing was cancelled.");
     }
+    
   }
-
+  
   function navigate(query = destination) {
     if (!query.trim()) {
       setSaveMessage("No destination is available for navigation.");
@@ -342,9 +532,24 @@ function openRoadConditions() {
                 <button onClick={() => navigate()} className="rounded-2xl bg-white px-6 py-4 font-black text-slate-950">
                   🧭 Start Navigation
                 </button>
-                <button onClick={() => void saveTrip()} disabled={isSaving} className="rounded-2xl bg-emerald-500 px-6 py-4 font-black disabled:opacity-50">
-                  {isSaving ? "Saving..." : "💾 Save Trip"}
-                </button>
+    {user ? (
+  <button
+    type="button"
+    onClick={() => void saveTrip()}
+    disabled={isSaving}
+    className="rounded-2xl bg-emerald-500 px-6 py-4 font-black hover:bg-emerald-400 disabled:opacity-50"
+  >
+    {isSaving ? "Saving..." : "Create Account To Save"}
+  </button>
+) : (
+  <button
+    type="button"
+ onClick={() => void saveTrip()}
+    className="rounded-2xl bg-emerald-500 px-6 py-4 font-black hover:bg-emerald-400"
+  >
+    👤 Create Account to Save
+  </button>
+)}
               </div>
             </section>
 
@@ -359,6 +564,192 @@ function openRoadConditions() {
   value={roundTripMiles !== null ? `${Math.round(roundTripMiles)} mi` : "—"}
 />
             </section>
+ <section className="mt-8 rounded-3xl border border-amber-400/30 bg-amber-400/10 p-6">
+  <div className="flex flex-col gap-4">
+    <div>
+      <p className="text-sm font-black uppercase tracking-widest text-amber-300">
+        ⭐ Premium Adventure Builder
+      </p>
+
+      <h2 className="mt-2 text-2xl font-black">
+        Remix My Trip
+      </h2>
+
+      <p className="mt-2 text-white/70">
+        Change the style of your adventure without starting over.
+        Choose one or more.
+      </p>
+    </div>
+
+    <div
+  className={`mx-auto grid w-full max-w-5xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 ${
+    !isPremium ? "pointer-events-none opacity-40" : ""
+  }`}
+>
+
+      <button
+        type="button"
+        onClick={() => toggleRemix("cheaper")}
+        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
+          selectedRemixes.includes("cheaper")
+            ? "border-amber-300 bg-amber-400/20"
+            : "border-white/10 bg-white/5 hover:bg-white/10"
+        }`}
+      >
+        💰 Make It Cheaper
+      </button>
+
+      <button
+        type="button"
+        onClick={() => toggleRemix("romantic")}
+        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
+          selectedRemixes.includes("romantic")
+            ? "border-amber-300 bg-amber-400/20"
+            : "border-white/10 bg-white/5 hover:bg-white/10"
+        }`}
+      >
+        💕 Romantic
+      </button>
+
+      <button
+        type="button"
+        onClick={() => toggleRemix("hiddenGems")}
+        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
+          selectedRemixes.includes("hiddenGems")
+            ? "border-amber-300 bg-amber-400/20"
+            : "border-white/10 bg-white/5 hover:bg-white/10"
+        }`}
+      >
+        💎 Hidden Gems
+      </button>
+
+      <button
+        type="button"
+        onClick={() => toggleRemix("adventure")}
+        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
+          selectedRemixes.includes("adventure")
+            ? "border-amber-300 bg-amber-400/20"
+            : "border-white/10 bg-white/5 hover:bg-white/10"
+        }`}
+      >
+        🧭 More Adventure
+      </button>
+
+      <button
+        type="button"
+        onClick={() => toggleRemix("rainyDay")}
+        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
+          selectedRemixes.includes("rainyDay")
+            ? "border-amber-300 bg-amber-400/20"
+            : "border-white/10 bg-white/5 hover:bg-white/10"
+        }`}
+      >
+        🌧️ Rainy Day
+      </button>
+
+      <button
+        type="button"
+        onClick={() => toggleRemix("familyFriendly")}
+        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
+          selectedRemixes.includes("familyFriendly")
+            ? "border-amber-300 bg-amber-400/20"
+            : "border-white/10 bg-white/5 hover:bg-white/10"
+        }`}
+      >
+        👨‍👩‍👧 Family Friendly
+      </button>
+
+      <button
+        type="button"
+        onClick={() => toggleRemix("petFriendly")}
+        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
+          selectedRemixes.includes("petFriendly")
+            ? "border-amber-300 bg-amber-400/20"
+            : "border-white/10 bg-white/5 hover:bg-white/10"
+        }`}
+      >
+        🐾 Pet Friendly
+      </button>
+
+      <button
+        type="button"
+        onClick={() => toggleRemix("adrenalineJunkie")}
+        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
+          selectedRemixes.includes("adrenalineJunkie")
+            ? "border-amber-300 bg-amber-400/20"
+            : "border-white/10 bg-white/5 hover:bg-white/10"
+        }`}
+      >
+        ⚡ Adrenaline Junkie
+      </button>
+
+      <button
+        type="button"
+        onClick={() => toggleRemix("nightlife")}
+        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
+          selectedRemixes.includes("nightlife")
+            ? "border-amber-300 bg-amber-400/20"
+            : "border-white/10 bg-white/5 hover:bg-white/10"
+        }`}
+      >
+        🌙 Nightlife
+      </button>
+
+      <button
+        type="button"
+        onClick={() => toggleRemix("theArts")}
+        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
+          selectedRemixes.includes("theArts")
+            ? "border-amber-300 bg-amber-400/20"
+            : "border-white/10 bg-white/5 hover:bg-white/10"
+        }`}
+      >
+        🎨 The Arts
+      </button>
+
+    </div>
+
+    <button
+      type="button"
+      onClick={() => void remixTrip(selectedRemixes)}
+      disabled={!isPremium || selectedRemixes.length === 0 || Boolean(isRemixing)}
+      className="mx-auto mt-2 w-full max-w-5xl rounded-2xl bg-amber-400 px-6 py-4 font-black text-slate-950 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {isRemixing ? "✨ Remixing Trip..." : "✨ Remix Selected Options"}
+    </button>
+    {!isPremium && (
+  <div className="mt-3 text-center">
+    <p className="font-bold text-amber-200">
+      🔒 Remix My Trip is a Premium feature
+    </p>
+
+   <button
+  type="button"
+  onClick={async () => {
+    const response = await fetch("/api/checkout", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        plan: "yearly",
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.url) {
+      window.location.href = data.url;
+    }
+  }}
+  className="mt-2 inline-block rounded-xl bg-amber-400 px-5 py-3 font-black text-slate-950 hover:bg-amber-300"
+>
+  ⭐ Upgrade to Premium
+</button>
+  </div>
+)}
+  </div>
+  </section>
 
             <section className="mt-8 grid gap-6 lg:grid-cols-2">
               <div className="rounded-3xl border border-emerald-400/25 bg-emerald-500/10 p-7">
@@ -536,15 +927,20 @@ function openRoadConditions() {
               </p>
 
               <div className="mt-6 flex flex-wrap gap-4">
-                <button
-                  type="button"
-                  onClick={() => void saveTrip()}
-                  disabled={isSaving}
-                  className="rounded-2xl bg-emerald-500 px-6 py-4 font-black hover:bg-emerald-400 disabled:opacity-50"
-                >
-                  {isSaving ? "Saving..." : "💾 Save Trip"}
-                </button>
-
+              <button
+  type="button"
+onClick={() => {
+  window.location.assign("/login?mode=signup&redirect=/trip");
+}}
+  disabled={isSaving}
+  className="rounded-2xl bg-emerald-500 px-6 py-4 font-black hover:bg-emerald-400 disabled:opacity-50"
+>
+  {isSaving
+    ? "Saving..."
+    : user
+      ? "💾 Save Trip"
+      : "👤 Create Account to Save"}
+</button>
                 <button
                   type="button"
                   onClick={() => navigate()}
@@ -570,17 +966,11 @@ function openRoadConditions() {
                 </button>
               </div>
 
-              {saveMessage && (
-                <div
-                  className={`mt-5 rounded-2xl p-4 font-bold ${
-                    saveMessage.toLowerCase().includes("saved")
-                      ? "bg-emerald-500/15 text-emerald-300"
-                      : "bg-amber-500/15 text-amber-200"
-                  }`}
-                >
-                  {saveMessage}
-                </div>
-              )}
+             {saveMessage && (
+  <div className="mx-auto mt-5 max-w-3xl rounded-2xl bg-amber-500/15 p-4 text-center font-bold text-amber-200 break-words">
+    {saveMessage}
+  </div>
+)}
             </section>
           </>
         )}

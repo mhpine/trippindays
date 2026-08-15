@@ -115,7 +115,18 @@ ${featuredTrip.highlights.map((item) => `- ${item}`).join("\n")}
     `.trim();
   }
 
-  function exploreAdventure() {
+ async function exploreAdventure() {
+  const supabase = createClient();
+
+const {
+  data: { user },
+} = await supabase.auth.getUser();
+alert(user ? "SIGNED IN" : "GUEST");
+
+if (!user) {
+  window.location.href = "/login?mode=signup&redirect=/featured";
+  return;
+}
     localStorage.setItem(
       "trippindays-request",
       buildFeaturedRequest()

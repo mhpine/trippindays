@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AuthButton from "@/components/AuthButton";
 import SiteHeader from "@/components/SiteHeader";
+import { createClient } from "@/lib/supabase/client";
 interface SpeechRecognitionResultItem {
   transcript: string;
 }
@@ -49,13 +50,19 @@ export default function Home() {
   const [timeAvailable, setTimeAvailable] = useState("Full Day");
   const [traveler, setTraveler] = useState("Just Me");
   const [isListening, setIsListening] = useState(false);
-
+const [signedIn, setSignedIn] = useState(false);
   const [message, setMessage] = useState(
     "Tap the microphone and tell me what kind of adventure you want."
   );
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+useEffect(() => {
+  const supabase = createClient();
 
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    setSignedIn(!!user);
+  });
+}, []);
   function startListening() {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -308,7 +315,7 @@ ${tripRequest}
     </p>
 
     <a
-  href="/featured"
+ href={signedIn ? "/featured" : "/login?mode=signup&redirect=/featured"}
   className="mt-6 flex h-14 items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-400 to-sky-500 font-black text-white transition hover:scale-[1.02]"
 >
   Explore Adventure →
@@ -326,7 +333,7 @@ ${tripRequest}
       Save memories, photos, notes and print a beautiful keepsake after every trip.
     </p>
 <a
-  href="/journal"
+href={signedIn ? "/journal" : "/login?mode=signup&redirect=/journal"}
   className="mt-5 block w-full rounded-xl bg-emerald-500 py-3 text-center font-bold hover:bg-emerald-400"
 >
   View Journal
@@ -346,7 +353,7 @@ ${tripRequest}
     </p>
 
     <a
-  href="/passport"
+  href={signedIn ? "/passport" : "/login?mode=signup&redirect=/passport"}
   className="mt-5 block w-full rounded-xl bg-amber-500 py-3 text-center font-bold transition hover:bg-amber-400"
 >
   View Passport

@@ -13,11 +13,15 @@ export default function LoginPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setRedirectTo(params.get("redirect") || "/");
-  }, []);
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
 
+  setRedirectTo(params.get("redirect") || "/");
+
+  if (params.get("mode") === "signup") {
+    setMode("signup");
+  }
+}, []);
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);

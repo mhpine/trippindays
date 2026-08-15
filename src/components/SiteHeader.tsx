@@ -95,12 +95,14 @@ function handleGetApp() {
             >
               Home
             </a>
-
+{signedIn && (
+  <>
             <a
               href="/passport"
               className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
             >
               Passport
+              
             </a>
 
             <a
@@ -123,8 +125,16 @@ function handleGetApp() {
             >
               Feedback
             </a>
+<a
+  href="/premium"
+  className="rounded-xl bg-amber-400 px-4 py-3 font-black text-slate-950 hover:bg-amber-300"
+>
+    Premium
+  </a>
+</>
+)}
 
-            {!loading && !signedIn && (
+{!loading && !signedIn && (
               <a
                 href="/login"
                 className="rounded-full border border-white/20 px-4 py-2 font-bold hover:bg-white/10"
@@ -217,6 +227,12 @@ function handleGetApp() {
             >
               Feedback
             </a>
+            <a
+  href="/premium"
+  className="rounded-full bg-amber-400 px-4 py-2 font-black text-slate-950 hover:bg-amber-300"
+>
+  Premium
+</a>
 
             {!loading && !signedIn && (
               <a

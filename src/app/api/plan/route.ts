@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
 type AdventureOption = {
@@ -201,14 +201,11 @@ Check current local weather immediately before departure.
 
 export async function POST(request: Request) {
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(
-        {
-          error:
-            "GEMINI_API_KEY is missing from .env.local.",
-        },
+       { error: "OPENAI_API_KEY is missing from .env.local." },
         { status: 500 }
       );
     }
@@ -260,9 +257,9 @@ ${recentDestinations
 `
         : "";
 
-    const ai = new GoogleGenAI({
-      apiKey,
-    });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
     const discoveryInstructions = `
 Find 4 to 6 REAL road-trip destinations that fit the user's:
@@ -430,12 +427,11 @@ Include reminders appropriate to the trip, such as:
 The itinerary should feel like a complete road-trip assistant,
 not merely a list of attractions.
 `;
+const response = await openai.responses.create({
+  model: "gpt-5.6-luna",
+    reasoning: { effort: "low" },
 
-    const response =
-      await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-
-        contents: `
+  input: `
 You are TrippinDays, an AI road-trip assistant.
 
 The user entered:
@@ -526,23 +522,15 @@ Important:
 - musicSuggestions must contain exactly 3 real, widely known songs with real artist names that fit the mood, destination, or style of the trip. Do not invent songs or artists.
         `,
 
-        config: {
-          responseMimeType:
-            "application/json",
-        },
+        
       });
+if (!response.output_text) {
+  throw new Error(
+    "OpenAI returned an empty response."
+  );
+}
 
-    if (!response.text) {
-      throw new Error(
-        "Gemini returned an empty response."
-      );
-    }
-
-    const cleanedText = response.text
-      .replace(/```json/gi, "")
-      .replace(/```/g, "")
-      .trim();
-
+const cleanedText = response.output_text
     const firstBrace =
       cleanedText.indexOf("{");
 
