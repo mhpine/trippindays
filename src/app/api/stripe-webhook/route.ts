@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,7 +11,16 @@ const supabaseAdmin = createClient(
 
 export async function POST(request: Request) {
   const signature = request.headers.get("stripe-signature");
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
+if (!stripeSecretKey) {
+  return NextResponse.json(
+    { error: "STRIPE_SECRET_KEY is missing." },
+    { status: 500 }
+  );
+}
+
+const stripe = new Stripe(stripeSecretKey);
   if (!signature) {
     return NextResponse.json(
       { error: "Missing Stripe signature." },
