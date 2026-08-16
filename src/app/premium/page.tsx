@@ -5,23 +5,43 @@ import { createClient } from "@/lib/supabase/client";
 import SiteHeader from "@/components/SiteHeader";
 export default function PremiumPage() {
   const [signedIn, setSignedIn] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
 const [selectedPlan, setSelectedPlan] = useState<"monthly" | "yearly">("yearly");
   useEffect(() => {
     const supabase = createClient();
 
-    async function checkUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  async function checkUser() {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-      setSignedIn(!!user);
-      setLoading(false);
-    }
+  if (userError || !user) {
+    setSignedIn(false);
+    setIsPremium(false);
+    setLoading(false);
+    return;
+  }
 
-    void checkUser();
+  setSignedIn(true);
 
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("is_premium")
+    .eq("id", user.id)
+    .single();
+
+  if (profileError) {
+    console.error("Premium check failed:", profileError);
+    setIsPremium(false);
+  } else {
+    setIsPremium(profile?.is_premium === true);
+  }
+
+  setLoading(false);
+}
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -337,12 +357,14 @@ async function startCheckout() {
       </div>
     </div>
 
-  <button
-  type="button"
-  onClick={() => void startCheckout()}
-  className="mt-8 rounded-2xl bg-amber-400 px-8 py-4 text-lg font-black text-slate-950 hover:bg-amber-300"
+ <button
+  onClick={() => {
+    if (!isPremium) void startCheckout();
+  }}
+  disabled={isPremium || loading}
+  className="mt-6 rounded-2xl bg-amber-400 px-8 py-4 text-lg font-black text-slate-950 disabled:cursor-default disabled:opacity-80"
 >
-  ⭐ Upgrade to Premium
+  {isPremium ? "✓ Premium Active" : "⭐ Upgrade to Premium"}
 </button>
     <p className="mt-4 text-sm text-white/50">
       Cancel anytime.
