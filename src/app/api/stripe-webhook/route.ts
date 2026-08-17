@@ -86,6 +86,26 @@ const stripe = new Stripe(stripeSecretKey);
       );
     }
   }
+if (event.type === "customer.subscription.deleted") {
+  const subscription = event.data.object;
 
+  const { error } = await supabaseAdmin
+    .from("profiles")
+    .update({
+      is_premium: false,
+    })
+    .eq("stripe_subscription_id", subscription.id);
+
+  if (error) {
+    console.error("Supabase Premium cancellation update failed:", error);
+
+    return NextResponse.json(
+      { error: "Unable to deactivate Premium." },
+      { status: 500 }
+    );
+  }
+
+  console.log("Premium deactivated for subscription:", subscription.id);
+}
   return NextResponse.json({ received: true });
 }
