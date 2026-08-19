@@ -54,7 +54,7 @@ const [signedIn, setSignedIn] = useState(false);
   const [message, setMessage] = useState(
     "Tap the microphone and tell me what kind of adventure you want."
   );
-
+const [customTime, setCustomTime] = useState("");
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 useEffect(() => {
   const supabase = createClient();
@@ -135,13 +135,15 @@ useEffect(() => {
       setMessage("Tell me what kind of adventure you're looking for.");
       return;
     }
-
+const finalTime =
+  timeAvailable === "Custom" ? customTime : timeAvailable;
     const fullRequest = `
+    
 Starting Location: ${startingLocation}
 
 Budget: $${budget}
 
-Time Available: ${timeAvailable}
+Time Available: ${finalTime}
 
 Travelers: ${traveler}
 
@@ -252,19 +254,27 @@ ${tripRequest}
               />
 
               <div className="mb-4 grid gap-4 sm:grid-cols-2">
-                <select
-                  value={timeAvailable}
-                  onChange={(event) =>
-                    setTimeAvailable(event.target.value)
-                  }
-                  className="w-full rounded-2xl border border-white/15 bg-slate-950/60 p-4 text-white outline-none focus:border-sky-400"
-                >
-                  <option>2 Hours</option>
-                  <option>Half Day</option>
-                  <option>Full Day</option>
-                  <option>Weekend</option>
-                </select>
-
+            <select
+  value={timeAvailable}
+  onChange={(event) => setTimeAvailable(event.target.value)}
+  className="w-full rounded-2xl border border-white/15 bg-slate-950/60 p-4 text-white outline-none focus:border-sky-400"
+>
+  <option>2 Hours</option>
+  <option>Half Day</option>
+  <option>Full Day</option>
+  <option>Weekend</option>
+  <option>Custom</option>
+  
+</select>
+{timeAvailable === "Custom" && (
+  <input
+    type="text"
+    value={customTime}
+    onChange={(event) => setCustomTime(event.target.value)}
+    placeholder="Example: 3 days, 1 week, or August 22–28"
+    className="mt-3 w-full rounded-2xl border border-white/15 bg-slate-950/60 p-4 text-white outline-none placeholder:text-white/40 focus:border-sky-400"
+  />
+)}
                 <select
                   value={traveler}
                   onChange={(event) => setTraveler(event.target.value)}
