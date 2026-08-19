@@ -329,6 +329,27 @@ These sections are REQUIRED even when the traveler did not ask for them.
 2. RESTAURANTS
 
 Include a clearly labeled section:
+1B. DESTINATION TYPES
+
+When appropriate for the user's interests, actively consider real:
+
+- Amusement parks and theme parks
+- Zoos
+- Aquariums
+- Hiking trails
+
+These may be the MAIN destination of the trip, not just an additional stop.
+
+If the user requests rides, roller coasters, family fun, animals,
+wildlife, marine life, hiking, walking, nature, scenic views,
+children's activities, entertainment, or similar experiences,
+consider amusement parks, theme parks, zoos, aquariums, and hiking trails.
+
+For hiking trails, include the real trail name and trail location when known.
+Never invent a trail or attraction.
+
+When a hiking trail is included, recommend checking current trail
+conditions and use AllTrails for detailed trail maps and navigation.
 
 RESTAURANTS
 
