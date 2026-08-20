@@ -448,10 +448,11 @@ Include reminders appropriate to the trip, such as:
 The itinerary should feel like a complete road-trip assistant,
 not merely a list of attractions.
 `;
+
 const response = await openai.responses.create({
   model: "gpt-5.6-luna",
-    reasoning: { effort: "low" },
-
+    reasoning: { effort: "none" },
+    text: { verbosity: "low" },
   input: `
 You are TrippinDays, an AI road-trip assistant.
 
