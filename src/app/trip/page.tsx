@@ -45,6 +45,11 @@ export default function TripPage() {
  const [aiPlan, setAiPlan] = useState ("");
   const [tripTitle, setTripTitle] = useState("");
   const [destination, setDestination] = useState("");
+  const [imageSearchQuery, setImageSearchQuery] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+const [photographer, setPhotographer] = useState("");
+const [photographerUrl, setPhotographerUrl] = useState("");
+const [pexelsUrl, setPexelsUrl] = useState("");
   const [summary, setSummary] = useState("");
   const [roundTripMiles, setRoundTripMiles] = useState<number | null>(null);
   const [whySelected, setWhySelected] = useState<string[]>([]);
@@ -60,6 +65,34 @@ export default function TripPage() {
  const [isRemixing, setIsRemixing] = useState("");
 const [selectedRemixes, setSelectedRemixes] = useState<string[]>([]);
   const [recentDestinations, setRecentDestinations] = useState<string[]>([]);
+ 
+
+useEffect(() => {
+  if (!imageSearchQuery) return;
+
+  async function loadPhoto() {
+    try {
+      const response = await fetch(
+        `/api/photo?query=${encodeURIComponent(imageSearchQuery)}`
+      );
+
+      if (!response.ok) return;
+
+      const data = await response.json();
+
+      setImageUrl(data.imageUrl || "");
+      setPhotographer(data.photographer || "");
+      setPhotographerUrl(data.photographerUrl || "");
+      setPexelsUrl(data.pexelsUrl || "");
+    } catch (error) {
+      console.error("Photo load failed:", error);
+    }
+  }
+
+  void loadPhoto();
+}, [imageSearchQuery]);
+
+
   function toggleRemix(type: string) {
   setSelectedRemixes((current) =>
     current.includes(type)
@@ -196,6 +229,7 @@ const recentForRequest: string[] = recentSaved
       setAiPlan(data.plan || "");
       setTripTitle(data.title || "Your TrippinDays Adventure");
       setDestination(data.destination || "");
+      setImageSearchQuery(data.imageSearchQuery || "");
      if (data.destination) {
   setRecentDestinations((current) => {
   const returnedDestinations = [
@@ -259,14 +293,15 @@ ${adventure.reason}
   async function saveTrip() {
    
 const supabase = createClient();
-
 const {
-  data: { session },
-} = await supabase.auth.getSession();
-
-if (!session?.user) {
+  data: { user: currentUser },
+  error: userError,
+} = await supabase.auth.getUser();
+console.log("SAVE USER:", currentUser);
+console.log("SAVE USER ERROR:", userError);
+if (userError || !currentUser) { 
   setSaveMessage("Create a free account to save your trip.");
- window.location.href = "/login?mode=signup&redirect=/trip";
+ // window.location.href = "/login?mode=signup&redirect=/trip";
   return;
 }
  if (!aiPlan.trim()) {
@@ -282,11 +317,12 @@ try {
         : null;
 
       const { error: insertError } = await supabase.from("trips").insert({
-        user_id: session.user.id,
+        user_id: currentUser.id,
         title: tripTitle.trim() || destination.trim() || "My TrippinDays Adventure",
         starting_location: start || null,
         destination: destination.trim() || null,
-        budget:
+        image_url: imageUrl || null,
+       budget:
           numericBudget !== null && !Number.isNaN(numericBudget)
             ? numericBudget
             : null,
@@ -597,29 +633,51 @@ function openRoadConditions() {
               </p>
               <h1 className="mt-4 text-4xl font-black sm:text-6xl">{tripTitle}</h1>
               <p className="mt-4 text-2xl font-bold text-sky-100">📍 {destination}</p>
+              {imageUrl && (
+  <div className="mt-6 overflow-hidden rounded-3xl">
+    <img
+      src={imageUrl}
+      alt={destination || tripTitle}
+      className="h-72 w-full object-cover sm:h-96"
+    />
+
+    {photographer && (
+      <p className="px-3 py-2 text-xs text-white/60">
+        Photo by{" "}
+        <a
+          href={photographerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline"
+        >
+          {photographer}
+        </a>
+        {" "}on{" "}
+        <a
+          href={pexelsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline"
+        >
+          Pexels
+        </a>
+      </p>
+    )}
+  </div>
+)}
               {summary && <p className="mt-5 max-w-3xl text-lg leading-8 text-white/80">{summary}</p>}
               <div className="mt-8 flex flex-wrap gap-3">
                 <button onClick={() => navigate()} className="rounded-2xl bg-white px-6 py-4 font-black text-slate-950">
                   🧭 Start Navigation
                 </button>
-    {user ? (
   <button
-    type="button"
-    onClick={() => void saveTrip()}
-    disabled={isSaving}
-    className="rounded-2xl bg-emerald-500 px-6 py-4 font-black hover:bg-emerald-400 disabled:opacity-50"
-  >
-    {isSaving ? "Saving..." : "Create Account To Save"}
-  </button>
-) : (
-  <button
-    type="button"
- onClick={() => void saveTrip()}
-    className="rounded-2xl bg-emerald-500 px-6 py-4 font-black hover:bg-emerald-400"
-  >
-    👤 Create Account to Save
-  </button>
-)}
+  type="button"
+  onClick={() => void saveTrip()}
+  disabled={isSaving}
+  className="rounded-2xl bg-emerald-500 px-6 py-4 font-black hover:bg-emerald-400 disabled:opacity-50"
+>
+  {isSaving ? "Saving..." : "💾 Save Trip"}
+</button>
               </div>
             </section>
 
@@ -999,17 +1057,11 @@ function openRoadConditions() {
               <div className="mt-6 flex flex-wrap gap-4">
               <button
   type="button"
-onClick={() => {
-  window.location.assign("/login?mode=signup&redirect=/trip");
-}}
+onClick={() => void saveTrip()}
   disabled={isSaving}
   className="rounded-2xl bg-emerald-500 px-6 py-4 font-black hover:bg-emerald-400 disabled:opacity-50"
 >
-  {isSaving
-    ? "Saving..."
-    : user
-      ? "💾 Save Trip"
-      : "👤 Create Account to Save"}
+  {isSaving ? "Saving..." : "💾 Save Trip"}
 </button>
                 <button
                   type="button"
@@ -1373,3 +1425,4 @@ function decorateLine(line: string) {
 function formatTemperature(value: number | null) {
   return value === null ? "Unavailable" : `${Math.round(value)}°F`;
 }
+

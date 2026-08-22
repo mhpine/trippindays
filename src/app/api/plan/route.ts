@@ -16,6 +16,7 @@ type AdventureOption = {
 type GeminiTrip = {
   title: string;
   selectedDestination: string;
+  imageSearchQuery?: string;
    roundTripMiles: number;
   weatherSearchLocation: string;
   summary: string;
@@ -505,6 +506,7 @@ Use exactly this structure:
 {
   "title": "Exciting title for the selected adventure",
   "selectedDestination": "Full name of the selected destination",
+  "imageSearchQuery": "Real destination name, city or region, state, scenic travel photography",
   "weatherSearchLocation": "Nearest real city or town, state",
   "summary": "Two short sentences about the trip",
   "whySelected": [
@@ -837,6 +839,7 @@ trip = JSON.parse(cleanedJson) as GeminiTrip;
 
       destination:
         trip.selectedDestination,
+        imageSearchQuery: trip.imageSearchQuery || "",
 roundTripMiles: trip.roundTripMiles,
       summary: trip.summary || "",
 
