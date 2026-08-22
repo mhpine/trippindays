@@ -286,7 +286,10 @@ Find 4 to 6 REAL road-trip destinations that fit the user's:
 - Interests
 - Available time
 
-Choose the strongest destination as the AI Pick.
+Choose one of the strongest matching destinations as the AI Pick.
+Do not always choose the highest-scoring or most famous destination.
+When several destinations are good matches, deliberately vary the AI Pick.
+A recently recommended destination should not be the AI Pick when another strong realistic alternative exists.
 
 Variety rules:
 
@@ -301,6 +304,11 @@ Variety rules:
 - At least three recommendations should be different from the recent list.
 - Only reuse a recent destination when the user explicitly requests it or
   there are too few realistic alternatives within the stated limits.
+  - Actively explore lesser-known and alternative destinations that fit the request.
+- Do not automatically favor the most famous or popular destination.
+- When several destinations are similarly good matches, vary the selection between trips.
+- Prefer a strong alternative over repeatedly choosing the same well-known destination.
+- Consider the full geographic area allowed by the user's time and distance, not just the nearest famous attraction.
 - Sort adventures from highest match to lowest match.
 - The first adventure must be selectedDestination.
 `;

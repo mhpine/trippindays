@@ -59,7 +59,7 @@ export default function TripPage() {
   const [saveMessage, setSaveMessage] = useState("");
  const [isRemixing, setIsRemixing] = useState("");
 const [selectedRemixes, setSelectedRemixes] = useState<string[]>([]);
-  
+  const [recentDestinations, setRecentDestinations] = useState<string[]>([]);
   function toggleRemix(type: string) {
   setSelectedRemixes((current) =>
     current.includes(type)
@@ -67,6 +67,17 @@ const [selectedRemixes, setSelectedRemixes] = useState<string[]>([]);
       : [...current, type]
   );
 }
+useEffect(() => {
+  const saved = localStorage.getItem("trippindays-recent-destinations");
+
+  if (saved) {
+    try {
+      setRecentDestinations(JSON.parse(saved));
+    } catch {
+      setRecentDestinations([]);
+    }
+  }
+}, []);
   const started = useRef(false);
 const [user, setUser] = useState<User | null>(null);
 const [isPremium, setIsPremium] = useState(false);
@@ -101,20 +112,51 @@ useEffect(() => {
     subscription.unsubscribe();
   };
 }, []);
+useEffect(() => {
+  const supabase = createClient();
+
+  async function checkPremium() {
+    if (!user) {
+      setIsPremium(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("is_premium")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Premium check failed:", error);
+      setIsPremium(false);
+      return;
+    }
+
+    setIsPremium(data?.is_premium === true);
+  }
+
+  void checkPremium();
+}, [user]);
   useEffect(() => {
     if (started.current) return;
     started.current = true;
 
     const saved = localStorage.getItem("trippindays-request") || "";
     setRequest(saved);
+const recentSaved =
+  localStorage.getItem("trippindays-recent-destinations");
 
+const recentForRequest: string[] = recentSaved
+  ? JSON.parse(recentSaved)
+  : [];
     if (!saved.trim()) {
       setError("No trip request was found. Return home and create a trip.");
       setIsLoading(false);
       return;
     }
 
-    void buildTrip(saved);
+    void buildTrip(saved, recentForRequest);
   }, []);
 
   const start = getValue(request, "Starting Location");
@@ -127,7 +169,10 @@ useEffect(() => {
     [aiPlan, destination]
   );
 
-  async function buildTrip(savedRequest: string) {
+  async function buildTrip(
+  savedRequest: string,
+  recentForRequest: string[]
+) {
     try {
       setIsLoading(true);
       setError("");
@@ -136,7 +181,10 @@ useEffect(() => {
       const response = await fetch("/api/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tripRequest: savedRequest }),
+        body: JSON.stringify({
+  tripRequest: savedRequest,
+  recentDestinations: recentForRequest,
+}),
       });
 
       const data = await response.json();
@@ -148,6 +196,28 @@ useEffect(() => {
       setAiPlan(data.plan || "");
       setTripTitle(data.title || "Your TrippinDays Adventure");
       setDestination(data.destination || "");
+     if (data.destination) {
+  setRecentDestinations((current) => {
+  const returnedDestinations = [
+    data.destination,
+    ...(Array.isArray(data.adventures)
+      ? data.adventures.map((item: AdventureOption) => item.name)
+      : []),
+  ].filter(Boolean);
+
+  const updated = [
+    ...returnedDestinations,
+    ...current.filter((item) => !returnedDestinations.includes(item)),
+  ].slice(0, 30);
+
+  localStorage.setItem(
+    "trippindays-recent-destinations",
+    JSON.stringify(updated)
+  );
+
+  return updated;
+});
+}
       setSummary(data.summary || "");
       setRoundTripMiles(
   typeof data.roundTripMiles === "number"
