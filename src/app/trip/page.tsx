@@ -332,7 +332,9 @@ try {
         itinerary: aiPlan,
         status: "saved",
       });
+if (insertError) throw insertError;
 
+setSaveMessage("✅ Trip Saved!");
       } catch (err) {
   const message =
     err instanceof Error ? err.message : "The trip could not be saved.";
@@ -676,7 +678,11 @@ function openRoadConditions() {
   disabled={isSaving}
   className="rounded-2xl bg-emerald-500 px-6 py-4 font-black hover:bg-emerald-400 disabled:opacity-50"
 >
-  {isSaving ? "Saving..." : "💾 Save Trip"}
+  {saveMessage === "✅ Trip Saved!"
+  ? "✅ Trip Saved!"
+  : isSaving
+    ? "Saving..."
+    : "💾 Save Trip"}
 </button>
               </div>
             </section>
@@ -1061,7 +1067,11 @@ onClick={() => void saveTrip()}
   disabled={isSaving}
   className="rounded-2xl bg-emerald-500 px-6 py-4 font-black hover:bg-emerald-400 disabled:opacity-50"
 >
-  {isSaving ? "Saving..." : "💾 Save Trip"}
+  {saveMessage === "✅ Trip Saved!"
+  ? "✅ Trip Saved!"
+  : isSaving
+    ? "Saving..."
+    : "💾 Save Trip"}
 </button>
                 <button
                   type="button"
