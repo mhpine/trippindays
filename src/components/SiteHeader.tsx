@@ -95,7 +95,7 @@ function handleGetApp() {
             >
               Home
             </a>
-           <a href="/premium" className="rounded-full px-4 py-2 font-bold hover:bg-white/10" > Premium </a> 
+           
 {signedIn && (
   <>
             <a
@@ -126,15 +126,15 @@ function handleGetApp() {
             >
               Feedback
             </a>
+
+</>
+)}
 <a
   href="/premium"
   className="rounded-xl bg-amber-400 px-4 py-3 font-black text-slate-950 hover:bg-amber-300"
 >
     Premium
   </a>
-</>
-)}
-
 {!loading && !signedIn && (
               <a
                 href="/login"
