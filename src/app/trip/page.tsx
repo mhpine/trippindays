@@ -684,6 +684,14 @@ function openRoadConditions() {
     ? "Saving..."
     : "💾 Save Trip"}
 </button>
+<button
+  type="button"
+  onClick={() => void buildTrip(request, recentDestinations)}
+  disabled={isLoading}
+  className="rounded-2xl bg-violet-500 px-6 py-4 font-black hover:bg-violet-400 disabled:opacity-50"
+>
+  {isLoading ? "Regenerating..." : "🔄 Regenerate"}
+</button>
               </div>
             </section>
 
@@ -1019,7 +1027,7 @@ function openRoadConditions() {
                     key={`${section.title}-${index}`}
                     section={section}
                     index={index}
-                    onNavigate={(query) => navigate(query)}
+                    onNavigate={() => navigate()}
                   />
                 ))}
               </div>
@@ -1060,42 +1068,81 @@ function openRoadConditions() {
                 Finish your adventure
               </p>
 
-              <div className="mt-6 flex flex-wrap gap-4">
+              <div className="mt-6 flex flex-wrap gap-2 lg:flex-nowrap">
               <button
   type="button"
 onClick={() => void saveTrip()}
   disabled={isSaving}
-  className="rounded-2xl bg-emerald-500 px-6 py-4 font-black hover:bg-emerald-400 disabled:opacity-50"
+ className="rounded-2xl bg-emerald-500 px-6 py-3 font-black whitespace-nowrap hover:bg-emerald-400 disabled:opacity-50 flex flex-col items-center justify-center gap-1"
 >
-  {saveMessage === "✅ Trip Saved!"
-  ? "✅ Trip Saved!"
-  : isSaving
-    ? "Saving..."
-    : "💾 Save Trip"}
+{saveMessage === "🟩 Trip Saved!" ? (
+  <>
+    <span>🟩</span>
+    <span>Trip Saved!</span>
+  </>
+) : isSaving ? (
+  <span>Saving...</span>
+) : (
+  <>
+    <span>💾</span>
+    <span>Save Trip</span>
+  </>
+)}
+</button>
+<button
+  type="button"
+  onClick={() => void buildTrip(request, recentDestinations)}
+  disabled={isLoading}
+  className="rounded-2xl bg-violet-500 px-6 py-3 font-black hover:bg-violet-400 disabled:opacity-50 flex flex-col items-center justify-center gap-1"
+>
+  {isLoading ? (
+    <span className="whitespace-nowrap">Regenerating...</span>
+  ) : (
+    <>
+      <span>🔄</span>
+      <span className="whitespace-nowrap">Regenerate</span>
+    </>
+  )}
 </button>
                 <button
                   type="button"
                   onClick={() => navigate()}
-                  className="rounded-2xl bg-blue-600 px-6 py-4 font-black hover:bg-blue-500"
+                  className="rounded-2xl bg-blue-600 px-6 py-4 font-black flex flex-col items-center justify-center gap-1 hover:bg-blue-500"
                 >
-                  🧭 Start Entire Trip
+                  <span>🧭</span>
+                  <span className="whitespace-nowrap">Start Entire Trip</span>
                 </button>
 
-                <a href="/journal" className="rounded-2xl bg-sky-500 px-6 py-4 font-black">
-                  📖 Create Journal
+                <a href="/journal" className="rounded-2xl bg-sky-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-1 ">
+                  <span>📓</span>
+                  <span className="whitespace-nowrap">Create Journal</span>
                 </a>
 
-                <a href="/passport" className="rounded-2xl border border-white/15 px-6 py-4 font-black">
-                  🛂 View Passport
-                </a>
+                <a
+  href="/passport"
+  className="rounded-2xl bg-amber-400 px-6 py-3 font-black flex flex-col items-center justify-center gap-1"
+>
+  <span>🛂</span>
+  <span className="whitespace-nowrap">View Passport</span>
+</a>
 
-                <button onClick={() => window.print()} className="rounded-2xl border border-white/15 px-6 py-4 font-black">
-                  🖨 Print
-                </button>
+               <button
+  type="button"
+  onClick={() => window.print()}
+  className="rounded-2xl bg-sky-400 px-6 py-3 font-black flex flex-col items-center justify-center gap-1"
+>
+  <span>🖨️</span>
+  <span className="whitespace-nowrap">Print</span>
+</button>
 
-                <button onClick={() => void shareTrip()} className="rounded-2xl border border-white/15 px-6 py-4 font-black">
-                  📤 Share
-                </button>
+                <button
+  type="button"
+  onClick={() => void shareTrip()}
+  className="rounded-2xl bg-sky-400 px-6 py-3 font-black flex flex-col items-center justify-center gap-1"
+>
+  <span>📤</span>
+  <span className="whitespace-nowrap">Share</span>
+</button>
               </div>
 
              {saveMessage && (
