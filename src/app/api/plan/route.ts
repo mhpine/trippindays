@@ -209,10 +209,26 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+const contentLength = Number(request.headers.get("content-length") || 0);
 
+if (contentLength > 20_000) {
+  return NextResponse.json(
+    { error: "Request too large." },
+    { status: 413 }
+  );
+}
     const body = await request.json();
     const tripRequest = body.tripRequest;
-
+if (
+  typeof tripRequest !== "string" ||
+  tripRequest.trim().length === 0 ||
+  tripRequest.length > 5000
+) {
+  return NextResponse.json(
+    { error: "Invalid trip request." },
+    { status: 400 }
+  );
+}
     const recentDestinations = Array.isArray(
       body.recentDestinations
     )
@@ -325,10 +341,6 @@ These sections are REQUIRED even when the traveler did not ask for them.
 - Include major activities, viewpoints, short walks, attractions,
   photography opportunities, and other requested experiences.
 - Include estimated costs throughout the day.
-
-2. RESTAURANTS
-
-Include a clearly labeled section:
 1B. DESTINATION TYPES
 
 When appropriate for the user's interests, actively consider real:
@@ -350,6 +362,10 @@ Never invent a trail or attraction.
 
 When a hiking trail is included, recommend checking current trail
 conditions and use AllTrails for detailed trail maps and navigation.
+2. RESTAURANTS
+
+Include a clearly labeled section:
+
 
 RESTAURANTS
 
@@ -529,6 +545,10 @@ Important:
 - Never knowingly invent a business, hospital, road, attraction, park,
   restaurant, gas station, or landmark.
 - Respect the user's starting location, requested radius, available time,
+- Treat the user's starting location as authoritative input.
+- If the starting location is a ZIP/postal code, do not guess or replace it with a different city.
+- Do not invent a city name for a ZIP/postal code unless that mapping is known with confidence.
+- If uncertain, keep the starting location exactly as entered by the user.
   interests, and budget whenever realistically possible.
 - Clearly label mileage, drive times, prices, and costs as estimates.
 - roundTripMiles must be the estimated total driving mileage from the user's starting location through the planned trip and back to the starting location. Return it as a number only.

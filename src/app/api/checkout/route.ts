@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
-
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function POST(request: Request) {
   try {
@@ -46,7 +46,7 @@ if (!user) {
     }
 
     const origin =
-      request.headers.get("origin") || "http://localhost:3000";
+  process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",

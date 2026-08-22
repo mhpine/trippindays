@@ -80,7 +80,7 @@ function handleGetApp() {
           </a>
 
           {/* DESKTOP NAV */}
-          <nav className="hidden items-center gap-2 md:flex">
+          <nav className="hidden items-center gap-1 md:flex">
             <a
               href="/downloads/TrippinDays.apk"
               download
@@ -91,10 +91,11 @@ function handleGetApp() {
 
             <a
               href="/"
-              className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
+              className="rounded-full px-3 py-2 font-bold hover:bg-white/10"
             >
               Home
             </a>
+           <a href="/premium" className="rounded-full px-4 py-2 font-bold hover:bg-white/10" > Premium </a> 
 {signedIn && (
   <>
             <a
