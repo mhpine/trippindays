@@ -720,7 +720,7 @@ function openRoadConditions() {
               </div>
             </section>
 
-            <section className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-2">
+            <section className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-5">
               <SummaryCard icon="🏁" label="Starting Point" value={start || "Current location"} />
               <SummaryCard icon="💵" label="Budget" value={budget} />
               <SummaryCard icon="⏱️" label="Time Available" value={time} />
@@ -731,7 +731,7 @@ function openRoadConditions() {
   value={roundTripMiles !== null ? `${Math.round(roundTripMiles)} mi` : "—"}
 />
         
- <section className="mt-8 col-span-2 sm:col-span-2 lg:col-span-2 rounded-3xl border border-amber-400/30 bg-amber-400/10 p-6">
+ <section className="text-center mt-8 col-span-2 lg:col-span-5 rounded-3xl ...">
   <div className="flex flex-col gap-4">
     <div>
       <p className="text-sm font-black uppercase tracking-widest text-amber-300">
@@ -1178,7 +1178,7 @@ className="rounded-2xl bg-emerald-500 px-6 py-4 font-black flex flex-col items-c
   type="button"
   onClick={() => void buildTrip(request, recentDestinations)}
   disabled={isLoading}
- className="rounded-2xl bg-emerald-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
+ className="rounded-2xl bg-violet-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
 >
   {isLoading ? (
     <span className="whitespace-nowrap">Regenerating...</span>
@@ -1192,7 +1192,7 @@ className="rounded-2xl bg-emerald-500 px-6 py-4 font-black flex flex-col items-c
                 <button
                   type="button"
                   onClick={() => navigate()}
-                className="rounded-2xl bg-emerald-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
+                className="rounded-2xl bg-blue-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
                 >
                   <span>🧭</span>
                   <span className="whitespace-nowrap">Start Entire Trip</span>
@@ -1208,7 +1208,7 @@ className="rounded-2xl bg-emerald-500 px-6 py-4 font-black flex flex-col items-c
 
                 <a
   href="/passport"
-className="rounded-2xl bg-emerald-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
+className="rounded-2xl bg-cyan-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
 >
   <span>🛂</span>
   <span className="whitespace-nowrap">View Passport</span>
@@ -1217,7 +1217,7 @@ className="rounded-2xl bg-emerald-500 px-6 py-4 font-black flex flex-col items-c
                <button
   type="button"
   onClick={() => window.print()}
-  className="rounded-2xl bg-emerald-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
+  className="rounded-2xl bg-slate-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
 >
   <span>🖨️</span>
   <span className="whitespace-nowrap">Print</span>
@@ -1226,7 +1226,7 @@ className="rounded-2xl bg-emerald-500 px-6 py-4 font-black flex flex-col items-c
                 <button
   type="button"
   onClick={() => void shareTrip()}
- className="rounded-2xl bg-emerald-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
+ className="rounded-2xl bg-sky-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
 >
   <span>📤</span>
   <span className="whitespace-nowrap">Share</span>
