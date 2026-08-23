@@ -626,7 +626,7 @@ function openRoadConditions() {
   window.open(url, "_blank", "noopener,noreferrer");
 }
   return (
-    <main className="min-h-screen bg-[#061426] text-white">
+   <main className="min-h-screen overflow-x-hidden bg-[#061425] text-white">
       <header className="border-b border-white/10 bg-[#061426]/90 px-6 py-5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <a href="/" className="text-2xl font-black">
