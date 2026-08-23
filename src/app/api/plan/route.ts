@@ -28,6 +28,15 @@ type GeminiTrip = {
     reason: string;
   }[];
   plan: string;
+  budgetBreakdown?: {
+  fuel: number;
+  food: number;
+  activities: number;
+  parking: number;
+  lodging: number;
+  other: number;
+  total: number;
+};
 };
 
 type GeoResult = {
@@ -51,6 +60,11 @@ type LiveChecks = {
   high: number | null;
   low: number | null;
   rainChance: number | null;
+  uvIndex: number | null;
+sunset: string | null;
+windGusts: number | null;
+moonPhase: string | null;
+alerts: string[];
 };
 
 function normalizeName(value: string) {
@@ -75,7 +89,27 @@ function removeDuplicateAdventures(
     return true;
   });
 }
+function getMoonPhase(date: Date): string {
+  const knownNewMoon = new Date("2000-01-06T18:14:00Z");
+  const lunarCycle = 29.53058867;
 
+  const daysSince =
+    (date.getTime() - knownNewMoon.getTime()) / 86400000;
+
+  const age =
+    ((daysSince % lunarCycle) + lunarCycle) % lunarCycle;
+
+  if (age < 1.84566) return "🌑 New Moon";
+  if (age < 5.53699) return "🌒 Waxing Crescent";
+  if (age < 9.22831) return "🌓 First Quarter";
+  if (age < 12.91963) return "🌔 Waxing Gibbous";
+  if (age < 16.61096) return "🌕 Full Moon";
+  if (age < 20.30228) return "🌖 Waning Gibbous";
+  if (age < 23.99361) return "🌗 Last Quarter";
+  if (age < 27.68493) return "🌘 Waning Crescent";
+
+  return "🌑 New Moon";
+}
 function weatherDescription(code: number | null) {
   if (code === null) return "Current conditions";
 
@@ -494,7 +528,17 @@ ${
 }
 
 ${itineraryRequirements}
-
+Budget breakdown requirements:
+- Estimate realistic costs for the generated trip.
+- fuel = estimated round-trip fuel cost.
+- food = estimated food and drink cost for all travelers.
+- activities = admission fees, tickets, tours, or activity costs.
+- parking = estimated parking costs.
+- lodging = estimated lodging cost, or 0 if no overnight stay is needed.
+- other = other expected trip costs not included above.
+- total = fuel + food + activities + parking + lodging + other.
+- Return all budgetBreakdown values as numbers only, with no dollar signs.
+- Keep the total within the traveler's stated budget whenever realistically possible.
 Return ONLY valid JSON.
 
 Do not include markdown.
@@ -515,6 +559,15 @@ Use exactly this structure:
     "Matches the requested activities",
     "Offers a memorable road-trip experience"
   ],
+"budgetBreakdown": {
+  "fuel": 0,
+  "food": 0,
+  "activities": 0,
+  "parking": 0,
+  "lodging": 0,
+  "other": 0,
+  "total": 0
+},
   "adventures": [
     {
       "name": "Real destination name",
@@ -710,11 +763,11 @@ trip = JSON.parse(cleanedJson) as GeminiTrip;
               location.longitude
             ),
 
-            current:
-              "temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m",
+          current:
+  "temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_gusts_10m",
 
-            daily:
-              "temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+daily:
+  "temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max,sunset",
 
             temperature_unit:
               "fahrenheit",
@@ -732,11 +785,11 @@ trip = JSON.parse(cleanedJson) as GeminiTrip;
           await fetch(weatherUrl, {
             cache: "no-store",
           });
-
+console.log("OPEN METEO STATUS:", weatherResponse.status);
         if (weatherResponse.ok) {
           const weather =
             await weatherResponse.json();
-
+console.log("OPEN METEO WEATHER:", JSON.stringify(weather, null, 2));
           liveChecks = {
             checkedAt:
               new Date().toISOString(),
@@ -794,6 +847,13 @@ trip = JSON.parse(cleanedJson) as GeminiTrip;
               weather.daily
                 ?.precipitation_probability_max?.[0] ??
               null,
+
+             uvIndex: weather.daily?.uv_index_max?.[0] ?? null,
+sunset: weather.daily?.sunset?.[0] ?? null,
+windGusts: weather.current?.wind_gusts_10m ?? null,
+moonPhase: getMoonPhase(new Date()),
+
+alerts: [],
           };
         }
       }
@@ -841,6 +901,7 @@ trip = JSON.parse(cleanedJson) as GeminiTrip;
         trip.selectedDestination,
         imageSearchQuery: trip.imageSearchQuery || "",
 roundTripMiles: trip.roundTripMiles,
+budgetBreakdown: trip.budgetBreakdown,
       summary: trip.summary || "",
 
       whySelected: Array.isArray(

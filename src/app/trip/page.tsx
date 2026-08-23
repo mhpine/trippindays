@@ -31,6 +31,11 @@ type LiveChecks = {
   high: number | null;
   low: number | null;
   rainChance: number | null;
+  uvIndex: number | null;
+sunset: string | null;
+windGusts: number | null;
+moonPhase: string | null;
+alerts: string[];
 };
 
 type Section = {
@@ -39,7 +44,15 @@ type Section = {
   lines: string[];
   navigationQuery: string | null;
 };
-
+type BudgetBreakdown = {
+  fuel: number;
+  food: number;
+  activities: number;
+  parking: number;
+  lodging: number;
+  other: number;
+  total: number;
+};
 export default function TripPage() {
   const [request, setRequest] = useState("");
  const [aiPlan, setAiPlan] = useState ("");
@@ -52,7 +65,18 @@ const [photographerUrl, setPhotographerUrl] = useState("");
 const [pexelsUrl, setPexelsUrl] = useState("");
   const [summary, setSummary] = useState("");
   const [roundTripMiles, setRoundTripMiles] = useState<number | null>(null);
-  const [whySelected, setWhySelected] = useState<string[]>([]);
+  const [budgetBreakdown, setBudgetBreakdown] = useState<BudgetBreakdown | null>(null);
+  const budgetItems = budgetBreakdown
+  ? [
+      { label: "Fuel", value: budgetBreakdown.fuel },
+      { label: "Food", value: budgetBreakdown.food },
+      { label: "Activities", value: budgetBreakdown.activities },
+      { label: "Parking", value: budgetBreakdown.parking },
+      { label: "Lodging", value: budgetBreakdown.lodging },
+      { label: "Other", value: budgetBreakdown.other },
+    ]
+  : [];
+  const [whySelected, setWhySelected] = useState<string[]>([]); 
   const [musicSuggestions, setMusicSuggestions] = useState<
   { title: string; artist: string; reason: string }[]
 >([]);
@@ -221,7 +245,7 @@ const recentForRequest: string[] = recentSaved
       });
 
       const data = await response.json();
-
+console.log("BUDGET BREAKDOWN:", data.budgetBreakdown);
       if (!response.ok) {
         throw new Error(data.error || "Could not build your trip.");
       }
@@ -229,6 +253,7 @@ const recentForRequest: string[] = recentSaved
       setAiPlan(data.plan || "");
       setTripTitle(data.title || "Your TrippinDays Adventure");
       setDestination(data.destination || "");
+      setBudgetBreakdown(data.budgetBreakdown || null);
       setImageSearchQuery(data.imageSearchQuery || "");
      if (data.destination) {
   setRecentDestinations((current) => {
@@ -440,7 +465,7 @@ return time, and RoadTunes music suggestions.
     });
 
     const data = await response.json();
-
+console.log("BUDGET BREAKDOWN:", data.budgetBreakdown);
     if (!response.ok) {
       throw new Error(data.error || "Could not remix your trip.");
     }
@@ -449,7 +474,7 @@ return time, and RoadTunes music suggestions.
     setTripTitle(data.title || tripTitle);
     setDestination(data.destination || destination);
     setSummary(data.summary || summary);
-
+setBudgetBreakdown(data.budgetBreakdown || budgetBreakdown);
     setRoundTripMiles(
       typeof data.roundTripMiles === "number"
         ? data.roundTripMiles
@@ -705,8 +730,8 @@ function openRoadConditions() {
   label="Round Trip"
   value={roundTripMiles !== null ? `${Math.round(roundTripMiles)} mi` : "—"}
 />
-            </section>
- <section className="mt-8 rounded-3xl border border-amber-400/30 bg-amber-400/10 p-6">
+        
+ <section className="mt-8 w-full lg:w-[calc(510%+1.5rem)] rounded-3xl border border-amber-400/30 bg-amber-400/10 p-6">
   <div className="flex flex-col gap-4">
     <div>
       <p className="text-sm font-black uppercase tracking-widest text-amber-300">
@@ -891,9 +916,69 @@ function openRoadConditions() {
   </div>
 )}
   </div>
+    </section>
+        
   </section>
 
             <section className="mt-8 grid gap-6 lg:grid-cols-2">
+                {budgetBreakdown && budgetBreakdown.total > 0 && (
+<div className="lg:col-start-2 lg:row-start-1 w-full h-full rounded-3xl border border-white/10 bg-white/5 p-6 flex items-center justify-center gap-12">
+    
+    <div
+      className="relative h-40 w-40 rounded-full"
+      style={{
+        background: `conic-gradient(
+          #22c55e 0deg ${(budgetBreakdown.fuel / budgetBreakdown.total) * 360}deg,
+          #38bdf8 ${(budgetBreakdown.fuel / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food) / budgetBreakdown.total) * 360}deg,
+          #a855f7 ${((budgetBreakdown.fuel + budgetBreakdown.food) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities) / budgetBreakdown.total) * 360}deg,
+          #f59e0b ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking) / budgetBreakdown.total) * 360}deg,
+          #ec4899 ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking + budgetBreakdown.lodging) / budgetBreakdown.total) * 360}deg,
+          #e2e8f0 ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking + budgetBreakdown.lodging) / budgetBreakdown.total) * 360}deg 360deg
+        )`,
+      }}
+    >
+      <div className="absolute inset-5 flex items-center justify-center rounded-full bg-slate-950">
+        <div className="text-center">
+          <p className="text-xs font-black uppercase text-white/60">
+            Total
+          </p>
+          <p className="text-xl font-black">
+            ${budgetBreakdown.total.toFixed(0)}
+          </p>
+        </div>
+      </div>
+    </div>
+    <div className="space-y-3 text-white">
+  <p className="text-lg font-black uppercase text-white/70">
+    Budget Breakdown
+  </p>
+
+  <p className="font-bold">
+    🟢 Fuel — ${budgetBreakdown.fuel.toFixed(0)}
+  </p>
+
+  <p className="font-bold">
+    🔵 Food — ${budgetBreakdown.food.toFixed(0)}
+  </p>
+
+  <p className="font-bold">
+    🟣 Activities — ${budgetBreakdown.activities.toFixed(0)}
+  </p>
+
+  <p className="font-bold">
+    🟡 Parking — ${budgetBreakdown.parking.toFixed(0)}
+  </p>
+
+  <p className="font-bold">
+    🩷 Lodging — ${budgetBreakdown.lodging.toFixed(0)}
+  </p>
+
+  <p className="font-bold">
+    ⚪ Other — ${budgetBreakdown.other.toFixed(0)}
+  </p>
+</div>
+  </div>
+)}
               <div className="rounded-3xl border border-emerald-400/25 bg-emerald-500/10 p-7">
                 <p className="text-sm font-black uppercase tracking-widest text-emerald-300">🏆 Why this trip fits</p>
                 <h2 className="mt-3 text-3xl font-black">{destination}</h2>
@@ -1010,7 +1095,7 @@ function openRoadConditions() {
   </div>
 )}
 </div>
-
+  
 
               <WeatherPanel liveChecks={liveChecks} onNavigate={() => navigate()} />
             </section>
@@ -1277,7 +1362,12 @@ function WeatherPanel({
 }) {
   if (!liveChecks) {
     return (
-      <div className="rounded-3xl border border-yellow-300/20 bg-yellow-400/10 p-7 text-yellow-100">
+<div
+  className="rounded-3xl border border-sky-400/30 p-6"
+  style={{
+    backgroundColor: "red",
+  }}
+>
         <p className="text-sm font-black uppercase tracking-widest">Live weather</p>
         <h2 className="mt-3 text-2xl font-black">Weather location unavailable</h2>
         <p className="mt-3 leading-7">Check current conditions before leaving.</p>
@@ -1286,7 +1376,15 @@ function WeatherPanel({
   }
 
   return (
-    <div className="rounded-3xl border border-sky-400/25 bg-sky-500/10 p-7">
+    <div
+  className="rounded-3xl border border-sky-400/30 p-6"
+  style={{
+    backgroundImage: 'url("/images/sanfran.jpg")',
+    backgroundSize: "cover",
+    backgroundPosition: "center-right",
+    backgroundRepeat: "no-repeat",
+  }}
+>
       <p className="text-sm font-black uppercase tracking-widest text-sky-300">
         Live destination weather
       </p>
@@ -1307,16 +1405,48 @@ function WeatherPanel({
           label="Rain Chance"
           value={liveChecks.rainChance === null ? "Unavailable" : `${liveChecks.rainChance}%`}
         />
-      </div>
+        <InfoCard
+  label="UV Index"
+  value={
+    liveChecks.uvIndex == null
+      ? "Unavailable"
+      : `${liveChecks.uvIndex}`
+  }
+/>
 
-      <button
-        type="button"
-        onClick={onNavigate}
-        className="mt-5 w-full rounded-2xl bg-sky-500 px-5 py-4 font-black"
-      >
-        🧭 Start Navigation
-      </button>
+<InfoCard
+  label="Sunset"
+  value={liveChecks.sunset || "Unavailable"}
+/>
+
+<InfoCard
+  label="Wind Gusts"
+  value={
+    liveChecks.windGusts == null
+      ? "Unavailable"
+      : `${Math.round(liveChecks.windGusts)} mph`
+  }
+/>
+
+<InfoCard
+  label="Moon Phase"
+  value={liveChecks.moonPhase || "Unavailable"}
+/>
+      </div>
+<div className="mt-4 rounded-2xl bg-black/20 p-4">
+  <p className="text-xs font-bold uppercase tracking-wider text-white/50">
+    Travel Alerts
+  </p>
+
+  <p className="mt-2 font-bold">
+    {liveChecks.alerts?.length
+  ? liveChecks.alerts.join(" • ")
+  : "✓ No active weather alerts"}
+  </p>
+</div>
+     
     </div>
+    
   );
 }
 
