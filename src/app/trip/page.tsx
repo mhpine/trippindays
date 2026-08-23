@@ -731,7 +731,7 @@ function openRoadConditions() {
   value={roundTripMiles !== null ? `${Math.round(roundTripMiles)} mi` : "—"}
 />
         
- <section className="mt-8 col-span-1 sm:col-span-2 lg:col-span-2 rounded-3xl border border-amber-400/30 bg-amber-400/10 p-6">
+ <section className="mt-8 col-span-2 sm:col-span-2 lg:col-span-2 rounded-3xl border border-amber-400/30 bg-amber-400/10 p-6">
   <div className="flex flex-col gap-4">
     <div>
       <p className="text-sm font-black uppercase tracking-widest text-amber-300">
