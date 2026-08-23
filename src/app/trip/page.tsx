@@ -720,7 +720,7 @@ function openRoadConditions() {
               </div>
             </section>
 
-            <section className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <section className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-2">
               <SummaryCard icon="🏁" label="Starting Point" value={start || "Current location"} />
               <SummaryCard icon="💵" label="Budget" value={budget} />
               <SummaryCard icon="⏱️" label="Time Available" value={time} />
@@ -731,7 +731,7 @@ function openRoadConditions() {
   value={roundTripMiles !== null ? `${Math.round(roundTripMiles)} mi` : "—"}
 />
         
- <section className="mt-8 w-full lg:w-[calc(510%+1.5rem)] rounded-3xl border border-amber-400/30 bg-amber-400/10 p-6">
+ <section className="mt-8 col-span-1 sm:col-span-2 lg:col-span-2 rounded-3xl border border-amber-400/30 bg-amber-400/10 p-6">
   <div className="flex flex-col gap-4">
     <div>
       <p className="text-sm font-black uppercase tracking-widest text-amber-300">
@@ -1135,7 +1135,7 @@ function openRoadConditions() {
                   </div>
                 </div>
 
-                <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
                   {adventures.map((adventure, index) => (
                     <AdventureCard
                       key={`${adventure.name}-${index}`}
