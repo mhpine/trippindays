@@ -626,7 +626,7 @@ function openRoadConditions() {
   window.open(url, "_blank", "noopener,noreferrer");
 }
   return (
-   <main className="min-h-screen overflow-x-hidden bg-[#061425] text-white">
+  <main className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#061426] text-white">
       <header className="border-b border-white/10 bg-[#061426]/90 px-6 py-5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <a href="/" className="text-2xl font-black">
@@ -638,7 +638,7 @@ function openRoadConditions() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-6 py-10">
+      <div className="mx-auto w-full max-w-7xl min-w-0 px-4 sm:px-6 py-10">
         {isLoading && <LoadingPanel />}
 
         {error && !isLoading && (
