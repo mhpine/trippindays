@@ -1153,12 +1153,12 @@ function openRoadConditions() {
                 Finish your adventure
               </p>
 
-              <div className="mt-6 flex flex-wrap gap-2 lg:flex-nowrap">
+              <div className="mt-6 grid grid-cols-2 gap-3">
               <button
   type="button"
 onClick={() => void saveTrip()}
   disabled={isSaving}
- className="rounded-2xl bg-emerald-500 px-6 py-3 font-black whitespace-nowrap hover:bg-emerald-400 disabled:opacity-50 flex flex-col items-center justify-center gap-1"
+className="w-full rounded-2xl bg-emerald-500 px-6 py-3 ..."
 >
 {saveMessage === "🟩 Trip Saved!" ? (
   <>
@@ -1178,7 +1178,7 @@ onClick={() => void saveTrip()}
   type="button"
   onClick={() => void buildTrip(request, recentDestinations)}
   disabled={isLoading}
-  className="rounded-2xl bg-violet-500 px-6 py-3 font-black hover:bg-violet-400 disabled:opacity-50 flex flex-col items-center justify-center gap-1"
+ className="w-full rounded-2xl bg-emerald-500 px-6 py-3 ..."
 >
   {isLoading ? (
     <span className="whitespace-nowrap">Regenerating...</span>
@@ -1192,20 +1192,20 @@ onClick={() => void saveTrip()}
                 <button
                   type="button"
                   onClick={() => navigate()}
-                  className="rounded-2xl bg-blue-600 px-6 py-4 font-black flex flex-col items-center justify-center gap-1 hover:bg-blue-500"
+                 className="w-full rounded-2xl bg-emerald-500 px-6 py-3 ..."
                 >
                   <span>🧭</span>
                   <span className="whitespace-nowrap">Start Entire Trip</span>
                 </button>
 
-                <a href="/journal" className="rounded-2xl bg-sky-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-1 ">
+                <a href="/journal" className="w-full rounded-2xl bg-emerald-500 px-6 py-3 ...">
                   <span>📓</span>
                   <span className="whitespace-nowrap">Create Journal</span>
                 </a>
 
                 <a
   href="/passport"
-  className="rounded-2xl bg-amber-400 px-6 py-3 font-black flex flex-col items-center justify-center gap-1"
+className="w-full rounded-2xl bg-emerald-500 px-6 py-3 ..."
 >
   <span>🛂</span>
   <span className="whitespace-nowrap">View Passport</span>
@@ -1214,7 +1214,7 @@ onClick={() => void saveTrip()}
                <button
   type="button"
   onClick={() => window.print()}
-  className="rounded-2xl bg-sky-400 px-6 py-3 font-black flex flex-col items-center justify-center gap-1"
+  className="w-full rounded-2xl bg-emerald-500 px-6 py-3 ..."
 >
   <span>🖨️</span>
   <span className="whitespace-nowrap">Print</span>
@@ -1223,7 +1223,7 @@ onClick={() => void saveTrip()}
                 <button
   type="button"
   onClick={() => void shareTrip()}
-  className="rounded-2xl bg-sky-400 px-6 py-3 font-black flex flex-col items-center justify-center gap-1"
+ className="w-full rounded-2xl bg-emerald-500 px-6 py-3 ..."
 >
   <span>📤</span>
   <span className="whitespace-nowrap">Share</span>
