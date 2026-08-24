@@ -994,7 +994,7 @@ function openRoadConditions() {
   <button
     type="button"
     onClick={openFoodNearby}
-    className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-cyan-300/40 hover:bg-white/10"
+    className="grid w-full min-w-0 grid-cols-1 gap-4 sm:grid-cols-2"
   >
     <div className="text-3xl">🍽️</div>
     <h3 className="mt-3 text-xl font-black">Food Nearby</h3>
