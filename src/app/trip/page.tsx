@@ -994,7 +994,7 @@ function openRoadConditions() {
   <button
     type="button"
     onClick={openFoodNearby}
-    className="grid w-full min-w-0 grid-cols-1 gap-4 sm:grid-cols-2"
+    className="w-[calc(100%-16px)] mx-auto min-w-0 rounded-3xl ..."
   >
     <div className="text-3xl">🍽️</div>
     <h3 className="mt-3 text-xl font-black">Food Nearby</h3>
@@ -1009,7 +1009,7 @@ function openRoadConditions() {
   <button
     type="button"
     onClick={openGasNearby}
-    className="rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-cyan-300/40 hover:bg-white/10"
+    className="w-[calc(100%-16px)] mx-auto min-w-0 rounded-3xl ..."
   >
     <div className="text-3xl">⛽</div>
     <h3 className="mt-3 text-xl font-black">Gas Nearby</h3>
@@ -1024,7 +1024,7 @@ function openRoadConditions() {
   <button
     type="button"
     onClick={openWorshipNearby}
-    className="rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-cyan-300/40 hover:bg-white/10"
+    className="w-[calc(100%-16px)] mx-auto min-w-0 rounded-3xl ..."
   >
     <div className="text-3xl">🙏</div>
     <h3 className="mt-3 text-xl font-black">Places of Worship</h3>
@@ -1039,7 +1039,7 @@ function openRoadConditions() {
   <button
     type="button"
     onClick={openMedicalNearby}
-    className="rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-cyan-300/40 hover:bg-white/10"
+   className="w-[calc(100%-16px)] mx-auto min-w-0 rounded-3xl ..."
   >
     <div className="text-3xl">🏥</div>
     <h3 className="mt-3 text-xl font-black">
@@ -1048,7 +1048,7 @@ function openRoadConditions() {
     <p className="mt-2 text-sm text-white/60">
       Find hospitals, emergency rooms, and urgent care near your destination.
     </p>
-    <p className="mt-4 text-sm font-black text-cyan-300">
+    <p className="w-[calc(100%-16px)] mx-auto min-w-0 rounded-3xl ...">
       Open in Maps →
     </p>
   </button>
