@@ -195,14 +195,18 @@ useEffect(() => {
 
   void checkPremium();
 }, [user]);
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
 
-    const saved = localStorage.getItem("trippindays-request") || "";
-    setRequest(saved);
-const recentSaved =
-  localStorage.getItem("trippindays-recent-destinations");
+  const saved =
+    params.get("request") ||
+    localStorage.getItem("trippindays-request") ||
+    "";
+
+  setRequest(saved);
+
+  const recentSaved =
+    localStorage.getItem("trippindays-recent-destinations");
 
 const recentForRequest: string[] = recentSaved
   ? JSON.parse(recentSaved)
@@ -921,65 +925,79 @@ function openRoadConditions() {
   </section>
 
             <section className="mt-8 grid gap-6 lg:grid-cols-2">
-                {budgetBreakdown && budgetBreakdown.total > 0 && (
-<div  className="lg:col-start-2 lg:row-start-1 w-[calc(100%_-_16px)] mx-auto min-w-0 sm:w-full h-full rounded-3xl">
-    
-    <div
-      className="relative h-40 w-40 rounded-full"
-      style={{
-        background: `conic-gradient(
-          #22c55e 0deg ${(budgetBreakdown.fuel / budgetBreakdown.total) * 360}deg,
-          #38bdf8 ${(budgetBreakdown.fuel / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food) / budgetBreakdown.total) * 360}deg,
-          #a855f7 ${((budgetBreakdown.fuel + budgetBreakdown.food) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities) / budgetBreakdown.total) * 360}deg,
-          #f59e0b ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking) / budgetBreakdown.total) * 360}deg,
-          #ec4899 ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking + budgetBreakdown.lodging) / budgetBreakdown.total) * 360}deg,
-          #e2e8f0 ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking + budgetBreakdown.lodging) / budgetBreakdown.total) * 360}deg 360deg
-        )`,
-      }}
-    >
-      <div className="absolute inset-5 flex items-center justify-center rounded-full bg-slate-950">
-        <div className="text-center">
-          <p className="text-xs font-black uppercase text-white/60">
-            Total
-          </p>
-          <p className="text-xl font-black">
-            ${budgetBreakdown.total.toFixed(0)}
-          </p>
+               {budgetBreakdown && budgetBreakdown.total > 0 && (
+  <div className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6">
+
+    {/* TITLE CENTERED AT TOP */}
+    <h2 className="mb-6 text-center text-xl font-black uppercase tracking-wide text-white">
+      Budget Breakdown
+    </h2>
+
+    {/* DONUT LEFT / COST BREAKDOWN RIGHT */}
+    <div className="grid w-full grid-cols-[42%_58%] items-center gap-2">
+
+      {/* LEFT SIDE — DONUT GRAPH */}
+      <div className="flex justify-center">
+        <div
+          className="relative h-40 w-40 shrink-0 rounded-full"
+          style={{
+            background: `conic-gradient(
+              #22c55e 0deg ${(budgetBreakdown.fuel / budgetBreakdown.total) * 360}deg,
+              #38bdf8 ${(budgetBreakdown.fuel / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food) / budgetBreakdown.total) * 360}deg,
+              #a855f7 ${((budgetBreakdown.fuel + budgetBreakdown.food) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities) / budgetBreakdown.total) * 360}deg,
+              #f59e0b ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking) / budgetBreakdown.total) * 360}deg,
+              #ec4899 ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking + budgetBreakdown.lodging) / budgetBreakdown.total) * 360}deg,
+              #e2e8f0 ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking + budgetBreakdown.lodging) / budgetBreakdown.total) * 360}deg 360deg
+            )`,
+          }}
+        >
+          {/* CENTER OF DONUT */}
+          <div className="absolute inset-5 flex items-center justify-center rounded-full bg-slate-950">
+            <div className="text-center">
+              <p className="text-xs font-black uppercase text-white/60">
+                Total
+              </p>
+
+              <p className="text-xl font-black text-white">
+                ${budgetBreakdown.total.toFixed(0)}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* RIGHT SIDE — COST BREAKDOWN */}
+      <div className="flex min-w-0 flex-col justify-center gap-3 pl-2 text-left text-white">
+
+        <p className="whitespace-nowrap font-bold">
+          🟢 Fuel — ${budgetBreakdown.fuel.toFixed(0)}
+        </p>
+
+        <p className="whitespace-nowrap font-bold">
+          🔵 Food — ${budgetBreakdown.food.toFixed(0)}
+        </p>
+
+        <p className="whitespace-nowrap font-bold">
+          🟣 Activities — ${budgetBreakdown.activities.toFixed(0)}
+        </p>
+
+        <p className="whitespace-nowrap font-bold">
+          🟡 Parking — ${budgetBreakdown.parking.toFixed(0)}
+        </p>
+
+        <p className="whitespace-nowrap font-bold">
+          🩷 Lodging — ${budgetBreakdown.lodging.toFixed(0)}
+        </p>
+
+        <p className="whitespace-nowrap font-bold">
+          ⚪ Other — ${budgetBreakdown.other.toFixed(0)}
+        </p>
+
+      </div>
     </div>
-    <div className="space-y-3 text-white">
-  <p className="text-lg font-black uppercase text-white/70">
-    Budget Breakdown
-  </p>
-
-  <p className="font-bold">
-    🟢 Fuel — ${budgetBreakdown.fuel.toFixed(0)}
-  </p>
-
-  <p className="font-bold">
-    🔵 Food — ${budgetBreakdown.food.toFixed(0)}
-  </p>
-
-  <p className="font-bold">
-    🟣 Activities — ${budgetBreakdown.activities.toFixed(0)}
-  </p>
-
-  <p className="font-bold">
-    🟡 Parking — ${budgetBreakdown.parking.toFixed(0)}
-  </p>
-
-  <p className="font-bold">
-    🩷 Lodging — ${budgetBreakdown.lodging.toFixed(0)}
-  </p>
-
-  <p className="font-bold">
-    ⚪ Other — ${budgetBreakdown.other.toFixed(0)}
-  </p>
-</div>
   </div>
 )}
-              <div className="w-[calc(100%_-_16px)] mx-auto min-w-0 sm:w-full rounded-3xl border border-emerald-400/25 bg-emerald-500/10 p-7">
+              <div className="w-full min-w-0 rounded-3xl border border-emerald-400/25 bg-emerald-500/10 p-7">
                 <p className="text-sm font-black uppercase tracking-widest text-emerald-300">🏆 Why this trip fits</p>
                 <h2 className="mt-3 text-3xl font-black">{destination}</h2>
                 <div className="mt-5 space-y-3">
@@ -994,7 +1012,7 @@ function openRoadConditions() {
   <button
     type="button"
     onClick={openFoodNearby}
-  className="w-[calc(100%_-_16px)] mx-auto min-w-0 sm:w-full rounded-3xl ..."
+  className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-cyan-300/40"
   >
     <div className="text-3xl">🍽️</div>
     <h3 className="mt-3 text-xl font-black">Food Nearby</h3>
@@ -1009,7 +1027,7 @@ function openRoadConditions() {
   <button
     type="button"
     onClick={openGasNearby}
- className="w-[calc(100%_-_16px)] mx-auto min-w-0 sm:w-full rounded-3xl ..."
+ className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-cyan-300/40"
   >
     <div className="text-3xl">⛽</div>
     <h3 className="mt-3 text-xl font-black">Gas Nearby</h3>
@@ -1024,8 +1042,7 @@ function openRoadConditions() {
   <button
     type="button"
     onClick={openWorshipNearby}
-   className="w-[calc(100%_-_16px)] mx-auto min-w-0 sm:w-full rounded-3xl ..."
-  >
+  className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-cyan-300/40">
     <div className="text-3xl">🙏</div>
     <h3 className="mt-3 text-xl font-black">Places of Worship</h3>
     <p className="mt-2 text-sm text-white/60">
@@ -1039,7 +1056,7 @@ function openRoadConditions() {
   <button
     type="button"
     onClick={openMedicalNearby}
-   className="w-[calc(100%_-_16px)] mx-auto min-w-0 sm:w-full rounded-3xl ..."
+  className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-cyan-300/40"
   >
     <div className="text-3xl">🏥</div>
     <h3 className="mt-3 text-xl font-black">
@@ -1056,7 +1073,7 @@ function openRoadConditions() {
 <button
   type="button"
   onClick={openRoadConditions}
-className="w-[calc(100%_-_16px)] mx-auto min-w-0 sm:w-full rounded-3xl ..."
+className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-cyan-300/40"
 >
   <div className="text-3xl">🚧</div>
 
@@ -1073,7 +1090,7 @@ className="w-[calc(100%_-_16px)] mx-auto min-w-0 sm:w-full rounded-3xl ..."
   </p>
 </button>
 {musicSuggestions.length > 0 && (
-  <div className="w-[calc(100%_-_16px)] mx-auto min-w-0 sm:w-full rounded-3xl ...">
+  <div className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text-left">
     <div className="text-3xl">🎵</div>
 
     <h3 className="mt-3 text-xl font-black">

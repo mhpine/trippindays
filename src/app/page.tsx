@@ -151,9 +151,8 @@ Trip Request:
 ${tripRequest}
     `.trim();
 
-    localStorage.setItem("trippindays-request", fullRequest);
+  window.location.href = `/trip?request=${encodeURIComponent(fullRequest)}`;
 
-    window.location.href = "/trip";
   }
 
   return (
@@ -299,7 +298,7 @@ ${tripRequest}
               <button
                 type="button"
                 onClick={planAdventure}
-                className="mt-4 w-full rounded-2xl bg-sky-500 px-6 py-4 text-lg font-black transition hover:bg-sky-400"
+                className="relative z-50 mt-4 w-full touch-manipulation pointer-events-auto rounded-2xl bg-sky-500 px-6 py-4 text-lg font-black transition hover:bg-sky-400"
               >
                 ✨ Plan My Adventure
               </button>
