@@ -82,6 +82,8 @@ const [pexelsUrl, setPexelsUrl] = useState("");
 >([]);
   const [adventures, setAdventures] = useState<AdventureOption[]>([]);
   const [liveChecks, setLiveChecks] = useState<LiveChecks | null>(null);
+  const [nearbyEvents, setNearbyEvents] = useState<any[]>([]);
+const [eventsLoading, setEventsLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -229,7 +231,34 @@ const recentForRequest: string[] = recentSaved
     () => parsePlan(aiPlan, destination),
     [aiPlan, destination]
   );
+useEffect(() => {
+  async function loadNearbyEvents() {
+    if (!liveChecks?.latitude || !liveChecks?.longitude) return;
 
+    try {
+      setEventsLoading(true);
+
+      const response = await fetch(
+        `/api/events-nearby?lat=${liveChecks.latitude}&lon=${liveChecks.longitude}&radius=75`
+      );
+
+      if (!response.ok) {
+        throw new Error("Could not load nearby events.");
+      }
+
+      const data = await response.json();
+
+      setNearbyEvents(Array.isArray(data.events) ? data.events : []);
+    } catch (error) {
+      console.error("Nearby events load failed:", error);
+      setNearbyEvents([]);
+    } finally {
+      setEventsLoading(false);
+    }
+  }
+
+  void loadNearbyEvents();
+}, [liveChecks]);
   async function buildTrip(
   savedRequest: string,
   recentForRequest: string[]
@@ -1008,7 +1037,7 @@ function openRoadConditions() {
                   ))}
                 </div>
               </div>
-<div className="grid w-full min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+<div className="grid w-full min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2">
   <button
     type="button"
     onClick={openFoodNearby}
@@ -1112,7 +1141,113 @@ className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text
   </div>
 )}
 </div>
-  
+  {eventsLoading && (
+  <section className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-6">
+    <p className="text-center font-bold text-white/70">
+      Loading nearby sports and concerts...
+    </p>
+  </section>
+)}
+
+{!eventsLoading && nearbyEvents.length > 0 && (
+  <section className="space-y-6">
+
+    {/*  SPORTS */}
+    {nearbyEvents.some((event) => event.type === "sports") && (
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+        <h2 className="mb-5 text-2xl font-black text-white">
+          🏟️ Live Sports Nearby
+        </h2>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {nearbyEvents
+            .filter((event) => event.type === "sports")
+            .slice(0, 6)
+            .map((event) => (
+              <div
+                key={event.id}
+                className="rounded-2xl border border-white/10 bg-black/20 p-5"
+              >
+                <h3 className="text-lg font-black text-white">
+                  {event.name}
+                </h3>
+
+                <p className="mt-2 text-sm text-white/70">
+                  {event.venue?.name}
+                  {event.venue?.city ? ` • ${event.venue.city}` : ""}
+                  {event.venue?.state ? `, ${event.venue.state}` : ""}
+                </p>
+
+                <p className="mt-2 text-sm font-bold text-cyan-300">
+                  {event.date}
+                  {event.time ? ` • ${event.time}` : ""}
+                </p>
+
+                {event.ticketUrl && (
+                  <a
+                    href={event.ticketUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-block rounded-xl bg-emerald-500 px-4 py-2 font-black text-black"
+                  >
+                    🎟️ Buy Tickets
+                  </a>
+                )}
+              </div>
+            ))}
+        </div>
+      </div>
+    )}
+
+    {/* CONCERTS */}
+    {nearbyEvents.some((event) => event.type === "concert") && (
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+        <h2 className="mb-5 text-2xl font-black text-white">
+          🎵 Concerts Nearby
+        </h2>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {nearbyEvents
+            .filter((event) => event.type === "concert")
+            .slice(0, 6)
+            .map((event) => (
+              <div
+                key={event.id}
+                className="rounded-2xl border border-white/10 bg-black/20 p-5"
+              >
+                <h3 className="text-lg font-black text-white">
+                  {event.name}
+                </h3>
+
+                <p className="mt-2 text-sm text-white/70">
+                  {event.venue?.name}
+                  {event.venue?.city ? ` • ${event.venue.city}` : ""}
+                  {event.venue?.state ? `, ${event.venue.state}` : ""}
+                </p>
+
+                <p className="mt-2 text-sm font-bold text-cyan-300">
+                  {event.date}
+                  {event.time ? ` • ${event.time}` : ""}
+                </p>
+
+                {event.ticketUrl && (
+                  <a
+                    href={event.ticketUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-block rounded-xl bg-violet-500 px-4 py-2 font-black text-white"
+                  >
+                    🎟️ Buy Tickets
+                  </a>
+                )}
+              </div>
+            ))}
+        </div>
+      </div>
+    )}
+
+  </section>
+)}
 
               <WeatherPanel liveChecks={liveChecks} onNavigate={() => navigate()} />
             </section>
