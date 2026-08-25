@@ -247,7 +247,8 @@ useEffect(() => {
       }
 
       const data = await response.json();
-
+console.log("NEARBY EVENT COUNT:", data.events?.length);
+console.log("NEARBY EVENT DATA:", data.events);
       setNearbyEvents(Array.isArray(data.events) ? data.events : []);
     } catch (error) {
       console.error("Nearby events load failed:", error);
