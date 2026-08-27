@@ -257,7 +257,7 @@ if (contentLength > 20_000) {
 if (
   typeof tripRequest !== "string" ||
   tripRequest.trim().length === 0 ||
-  tripRequest.length > 15000
+  tripRequest.length > 8000
 ) {
   return NextResponse.json(
     { error: "Invalid trip request." },

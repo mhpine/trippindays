@@ -740,6 +740,19 @@ function openRoadConditions() {
       </p>
     )}
   </div>
+  
+)}
+{destination && (
+  <a
+    href={`https://www.google.com/search?q=${encodeURIComponent(
+      destination + " official tourism visitor information attractions"
+    )}`}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="mt-4 flex w-full items-center justify-center rounded-2xl border border-sky-400/30 bg-sky-500/10 px-5 py-4 font-black text-sky-300 transition hover:bg-sky-500/20"
+  >
+    🔎 Research {destination}
+  </a>
 )}
               {summary && <p className="mt-5 max-w-3xl text-lg leading-8 text-white/80">{summary}</p>}
               <div className="mt-8 flex flex-wrap gap-3">
