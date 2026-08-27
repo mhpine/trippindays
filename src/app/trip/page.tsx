@@ -43,6 +43,11 @@ type Section = {
   emoji: string;
   lines: string[];
   navigationQuery: string | null;
+
+  researchUrl?: string | null;
+  mapsUrl?: string | null;
+  trailUrl?: string | null;
+  ticketUrl?: string | null;
 };
 type BudgetBreakdown = {
   fuel: number;
@@ -1439,7 +1444,19 @@ function ItineraryCard({
           <p className="text-xs font-black uppercase tracking-[0.2em] text-sky-300">
             Stop {index + 1}
           </p>
-          <h3 className="mt-2 text-2xl font-black">{section.title}</h3>
+          <h3 className="mt-2 text-2xl font-black">
+  {section.title}
+  <a
+    href={`https://www.google.com/search?q=${encodeURIComponent(
+      section.title + " official website visitor information"
+    )}`}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="ml-3 text-sm font-bold text-sky-300 underline hover:text-sky-200"
+  >
+    🔎 Research
+  </a>
+</h3>
         </div>
       </div>
 
@@ -1449,7 +1466,7 @@ function ItineraryCard({
             key={`${line}-${lineIndex}`}
             className="rounded-2xl bg-black/20 p-4 leading-7 text-white/80"
           >
-            {decorateLine(line)}
+            {line}
           </p>
         ))}
       </div>
@@ -1758,13 +1775,20 @@ function chooseEmoji(title: string) {
 }
 
 function decorateLine(line: string) {
-  if (/^(estimated|cost|price|budget)/i.test(line)) return `💵 ${line}`;
-  if (/^(drive|distance|travel|depart|arrive)/i.test(line)) return `🚗 ${line}`;
-  if (/^(why|reason|best|highlight)/i.test(line)) return `⭐ ${line}`;
-  if (/^(warning|alert|check|closure)/i.test(line)) return `⚠️ ${line}`;
-  return line;
-}
+  if (/^(estimated|cost|price|budget)/i.test(line))
+    return <>💵 {line}</>;
 
+  if (/^(drive|distance|travel|depart|arrive)/i.test(line))
+    return <>🚗 {line}</>;
+
+  if (/^(why|reason|best|highlight)/i.test(line))
+    return <>⭐ {line}</>;
+
+  if (/^(warning|alert|check|closure)/i.test(line))
+    return <>⚠️ {line}</>;
+
+  
+}
 function formatTemperature(value: number | null) {
   return value === null ? "Unavailable" : `${Math.round(value)}°F`;
 }
