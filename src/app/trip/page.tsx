@@ -95,6 +95,8 @@ const [eventsLoading, setEventsLoading] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
  const [isRemixing, setIsRemixing] = useState("");
 const [selectedRemixes, setSelectedRemixes] = useState<string[]>([]);
+const [remixCount, setRemixCount] = useState(0);
+const MAX_REMIXES = 3;
   const [recentDestinations, setRecentDestinations] = useState<string[]>([]);
  
 
@@ -412,12 +414,18 @@ setSaveMessage("✅ Trip Saved!");
 }
 
   }
+
  async function remixTrip(remixTypes: string[]) {
   if (!aiPlan.trim()) {
     setSaveMessage("Build a trip before remixing it.");
     return;
   }
-
+if (remixCount >= MAX_REMIXES) {
+  setSaveMessage(
+    "You’ve used all 3 remixes for this trip. Start a new trip to remix again."
+  );
+  return;
+}
  const remixInstructions: Record<string, string> = {
   cheaper:
     "Make this trip less expensive while keeping the best parts. Reduce unnecessary fuel, food, parking, admission, and activity costs. Favor free or low-cost alternatives.",
@@ -544,9 +552,11 @@ setBudgetBreakdown(data.budgetBreakdown || budgetBreakdown);
       top: 0,
       behavior: "smooth",
     });
-
-    setSaveMessage("✨ Your trip has been remixed!");
+setRemixCount((current) => current + 1);
+setSelectedRemixes([]);
+setSaveMessage("✨ Your trip has been remixed! Choose options to remix again.");
   } catch (err) {
+
     setSaveMessage(
       err instanceof Error
         ? err.message
@@ -1446,6 +1456,7 @@ function ItineraryCard({
           </p>
           <h3 className="mt-2 text-2xl font-black">
   {section.title}
+  {!/(check before leaving|warning|weather|budget|cost|drive|distance|travel|depart|arrive)/i.test(section.title) && (
   <a
     href={`https://www.google.com/search?q=${encodeURIComponent(
       section.title + " official website visitor information"
@@ -1456,6 +1467,7 @@ function ItineraryCard({
   >
     🔎 Research
   </a>
+)}
 </h3>
         </div>
       </div>
