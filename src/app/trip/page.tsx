@@ -96,7 +96,7 @@ const [eventsLoading, setEventsLoading] = useState(false);
  const [isRemixing, setIsRemixing] = useState("");
 const [selectedRemixes, setSelectedRemixes] = useState<string[]>([]);
 const [remixCount, setRemixCount] = useState(0);
-const MAX_REMIXES = 3;
+const MAX_REMIXES = 2;
   const [recentDestinations, setRecentDestinations] = useState<string[]>([]);
  
 
@@ -742,20 +742,21 @@ function openRoadConditions() {
   </div>
   
 )}
-{destination && (
-  <a
-    href={`https://www.google.com/search?q=${encodeURIComponent(
-      destination + " official tourism visitor information attractions"
-    )}`}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="mt-4 flex w-full items-center justify-center rounded-2xl border border-sky-400/30 bg-sky-500/10 px-5 py-4 font-black text-sky-300 transition hover:bg-sky-500/20"
-  >
-    🔎 Research {destination}
-  </a>
-)}
+
+<button
+  type="button"
+  onClick={() =>
+    document
+      .getElementById("adventure-itinerary")
+      ?.scrollIntoView({ behavior: "smooth" })
+  }
+ className="mx-auto mt-3 flex w-fit items-center justify-center gap-2 rounded-2xl border border-sky-300 bg-white/5 px-6 py-3 font-black text-sky-200 transition hover:bg-white/10 hover:text-white"
+>
+<span>Skip to Itinerary</span>
+<span className="text-2xl font-black">↓↓</span>
+</button>
               {summary && <p className="mt-5 max-w-3xl text-lg leading-8 text-white/80">{summary}</p>}
-              <div className="mt-8 flex flex-wrap gap-3">
+              <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <button onClick={() => navigate()} className="rounded-2xl bg-white px-6 py-4 font-black text-slate-950">
                   🧭 Start Navigation
                 </button>
@@ -779,6 +780,18 @@ function openRoadConditions() {
 >
   {isLoading ? "Regenerating..." : "🔄 Regenerate"}
 </button>
+{destination && (
+  <a
+    href={`https://www.google.com/search?q=${encodeURIComponent(
+      destination + " official tourism visitor information attractions"
+    )}`}
+    target="_blank"
+    rel="noopener noreferrer"
+   className="flex h-full min-h-[56px] w-full items-center justify-center rounded-2xl bg-sky-500 px-6 py-4 text-center font-black text-white hover:bg-sky-400"
+  >
+    🔎 Research {destination}
+  </a>
+)}
               </div>
             </section>
 
@@ -1285,7 +1298,7 @@ className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text
               <p className="text-sm font-black uppercase tracking-widest text-sky-300">
                 Your day, stop by stop
               </p>
-              <h2 className="mt-2 text-4xl font-black">Adventure itinerary</h2>
+              <h2 className="mt-2 text-4xl font-black">Itinerary</h2>
 
               <div className="mt-6 space-y-5">
                 {sections.map((section, index) => (
@@ -1457,7 +1470,10 @@ function ItineraryCard({
   onNavigate: (query: string) => void;
 }) {
   return (
-    <article className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-xl">
+    <article
+  id={index === 0 ? "adventure-itinerary" : undefined}
+  className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-xl"
+>
       <div className="flex items-start gap-4">
         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-sky-400/15 text-3xl">
           {section.emoji}
