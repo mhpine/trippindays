@@ -67,7 +67,11 @@ type OvernightStop = {
   checkOut: string;
 };
 
-
+type SelectedLodging = {
+  name: string;
+  address: string;
+  kind: "Hotels & Motels" | "Campgrounds & RV" | "Cabins & Lodges";
+};
 export default function TripPage() {
   const [request, setRequest] = useState("");
  const [aiPlan, setAiPlan] = useState ("");
@@ -1693,6 +1697,70 @@ function WeatherPanel({
     kind: "Hotels & Motels" | "Campgrounds & RV" | "Cabins & Lodges";
   } | null>(null);
 
+  const [selectedLodgings, setSelectedLodgings] = useState<Record<string, SelectedLodging>>({});
+  const [lodgingEditor, setLodgingEditor] = useState<{
+    stop: OvernightStop;
+    kind: "Hotels & Motels" | "Campgrounds & RV" | "Cabins & Lodges";
+  } | null>(null);
+  const [lodgingName, setLodgingName] = useState("");
+  const [lodgingAddress, setLodgingAddress] = useState("");
+
+  function lodgingStopKey(stop: OvernightStop) {
+    return `${stop.stage}|${stop.location}|${stop.checkIn}`;
+  }
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("trippindays-selected-lodgings");
+      if (saved) {
+        setSelectedLodgings(JSON.parse(saved));
+      }
+    } catch {
+      setSelectedLodgings({});
+    }
+  }, []);
+
+  function openLodgingEditor(
+    stop: OvernightStop,
+    kind: "Hotels & Motels" | "Campgrounds & RV" | "Cabins & Lodges"
+  ) {
+    const existing = selectedLodgings[lodgingStopKey(stop)];
+    setLodgingName(existing?.name || "");
+    setLodgingAddress(existing?.address || "");
+    setLodgingEditor({ stop, kind: existing?.kind || kind });
+  }
+
+  function saveLodgingSelection() {
+    if (!lodgingEditor || !lodgingName.trim()) return;
+
+    const key = lodgingStopKey(lodgingEditor.stop);
+    const next = {
+      ...selectedLodgings,
+      [key]: {
+        name: lodgingName.trim(),
+        address: lodgingAddress.trim(),
+        kind: lodgingEditor.kind,
+      },
+    };
+
+    setSelectedLodgings(next);
+    localStorage.setItem("trippindays-selected-lodgings", JSON.stringify(next));
+    setLodgingEditor(null);
+    setLodgingName("");
+    setLodgingAddress("");
+  }
+
+  function navigateToLodging(stop: OvernightStop) {
+    const lodging = selectedLodgings[lodgingStopKey(stop)];
+    if (!lodging) return;
+
+    const query = [lodging.name, lodging.address || stop.location]
+      .filter(Boolean)
+      .join(", ");
+
+    onNavigate(query);
+  }
+
   function buildExpediaHotelUrl(
     stop: OvernightStop,
     destinationOverride?: string
@@ -1843,6 +1911,8 @@ function WeatherPanel({
     </p>
 
     {overnightStops.map((stop, index) => {
+      const selectedLodging = selectedLodgings[lodgingStopKey(stop)];
+
       return (
         <div
           key={`${stop.stage}-${stop.location}-${index}`}
@@ -1888,7 +1958,46 @@ function WeatherPanel({
             </button>
           </div>
 
+          {selectedLodging ? (
+            <div className="mt-4 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4">
+              <p className="text-xs font-black uppercase tracking-wider text-emerald-300">
+                ✓ Your lodging
+              </p>
+              <p className="mt-2 text-lg font-black">{selectedLodging.name}</p>
+              <p className="mt-1 text-sm text-white/65">
+                {selectedLodging.address || stop.location}
+              </p>
 
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => navigateToLodging(stop)}
+                  className="rounded-xl bg-blue-600 px-4 py-3 font-black hover:bg-blue-500"
+                >
+                  🧭 Navigate to My Lodging
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openLodgingEditor(stop, selectedLodging.kind)}
+                  className="rounded-xl border border-white/15 bg-black/20 px-4 py-3 font-black hover:bg-black/35"
+                >
+                  Change Lodging
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => openLodgingEditor(stop, "Hotels & Motels")}
+              className="mt-4 w-full rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-4 py-3 font-black text-cyan-100 hover:bg-cyan-400/15"
+            >
+              + Add My Lodging for Navigation
+            </button>
+          )}
+
+          <p className="mt-3 text-xs text-white/45">
+            After booking, add the property you chose. TrippinDays will save it as this night's navigation destination.
+          </p>
         </div>
       );
     })}
@@ -1935,6 +2044,10 @@ function WeatherPanel({
 
       <p className="mt-4 text-sm leading-6 text-white/65">
         Expedia will open with this overnight stop, dates, and traveler count already filled in through the TrippinDays affiliate booking link.
+      </p>
+
+      <p className="mt-3 rounded-xl bg-cyan-400/10 p-3 text-sm font-bold text-cyan-100">
+        After you choose a property, return to TrippinDays and use “Add My Lodging for Navigation.” TrippinDays will then guide you directly to that hotel, motel, campground, cabin, or lodge.
       </p>
 
       <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/5 p-4">
@@ -1998,7 +2111,72 @@ function WeatherPanel({
   </div>
 )}
 
+{lodgingEditor && (
+  <div
+    className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Add lodging for navigation"
+    onClick={() => setLodgingEditor(null)}
+  >
+    <div
+      className="w-full max-w-lg rounded-3xl border border-white/15 bg-[#0b1b2f] p-6 shadow-2xl"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
+        {lodgingEditor.stop.stage}
+      </p>
+      <h3 className="mt-2 text-2xl font-black">Add My Lodging</h3>
+      <p className="mt-2 text-sm leading-6 text-white/60">
+        Enter the property you actually chose. TrippinDays will use it as the navigation destination for this overnight stop.
+      </p>
 
+      <div className="mt-5 space-y-4">
+        <div>
+          <label className="text-xs font-black uppercase tracking-wider text-white/55">
+            Property name
+          </label>
+          <input
+            value={lodgingName}
+            onChange={(event) => setLodgingName(event.target.value)}
+            placeholder="Example: Oxford Suites Boise"
+            className="mt-2 w-full rounded-xl border border-white/15 bg-black/25 px-4 py-3 text-white outline-none focus:border-cyan-300"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-black uppercase tracking-wider text-white/55">
+            Street address or location
+          </label>
+          <input
+            value={lodgingAddress}
+            onChange={(event) => setLodgingAddress(event.target.value)}
+            placeholder={`Example: 123 Main St, ${lodgingEditor.stop.location}`}
+            className="mt-2 w-full rounded-xl border border-white/15 bg-black/25 px-4 py-3 text-white outline-none focus:border-cyan-300"
+          />
+        </div>
+      </div>
+
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => setLodgingEditor(null)}
+          className="rounded-2xl border border-white/15 px-5 py-3 font-black hover:bg-white/10"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={!lodgingName.trim()}
+          onClick={saveLodgingSelection}
+          className="rounded-2xl bg-emerald-500 px-5 py-3 font-black text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Save & Use for Navigation
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
      
     </div>

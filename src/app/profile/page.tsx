@@ -44,9 +44,7 @@ export default function ProfilePage() {
 
       const { data, error } = await supabase
         .from("trips")
-        .select(
-          "id, title, destination, starting_location, created_at"
-        )
+        .select("id, title, destination, starting_location, created_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -64,10 +62,12 @@ export default function ProfilePage() {
     }
   }
 
+  function openTrip(id: string) {
+    window.location.href = `/trip?savedTrip=${encodeURIComponent(id)}`;
+  }
+
   async function deleteTrip(id: string) {
-    const confirmed = window.confirm(
-      "Delete this saved trip?"
-    );
+    const confirmed = window.confirm("Delete this saved trip?");
 
     if (!confirmed) return;
 
@@ -150,7 +150,7 @@ export default function ProfilePage() {
 
             <a
               href="/"
-              className="rounded-2xl bg-cyan-400 px-5 py-3 font-black text-slate-950"
+              className="rounded-2xl bg-cyan-400 px-5 py-3 font-black text-slate-950 hover:bg-cyan-300"
             >
               Plan New Trip
             </a>
@@ -177,15 +177,19 @@ export default function ProfilePage() {
               {trips.map((trip) => (
                 <article
                   key={trip.id}
-                  className="rounded-3xl border border-white/10 bg-white/5 p-6"
+                  className="rounded-3xl border border-white/10 bg-white/5 p-6 transition hover:border-cyan-300/40 hover:bg-white/10"
                 >
                   <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
                     Saved Adventure
                   </p>
 
-                  <h3 className="mt-3 text-2xl font-black">
+                  <button
+                    type="button"
+                    onClick={() => openTrip(trip.id)}
+                    className="mt-3 block text-left text-2xl font-black text-white transition hover:text-cyan-300 hover:underline"
+                  >
                     {trip.title}
-                  </h3>
+                  </button>
 
                   {trip.destination && (
                     <p className="mt-2 text-white/70">
@@ -205,12 +209,18 @@ export default function ProfilePage() {
                     ).toLocaleDateString()}
                   </p>
 
-                  <div className="mt-5 flex gap-3">
+                  <div className="mt-5 flex flex-wrap gap-3">
                     <button
                       type="button"
-                      onClick={() =>
-                        void deleteTrip(trip.id)
-                      }
+                      onClick={() => openTrip(trip.id)}
+                      className="rounded-xl bg-cyan-400 px-4 py-2 font-black text-slate-950 hover:bg-cyan-300"
+                    >
+                      Open Itinerary
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void deleteTrip(trip.id)}
                       className="rounded-xl border border-red-400/30 px-4 py-2 font-bold text-red-300 hover:bg-red-500/10"
                     >
                       Delete

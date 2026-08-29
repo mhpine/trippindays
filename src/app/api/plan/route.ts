@@ -291,6 +291,73 @@ if (
 
     const normalizedTripRequest = tripRequest.toLowerCase();
 
+    const timeAvailableDaysMatch = tripRequest.match(
+      /Time Available:\s*(\d+)\s*Days?\b/i
+    );
+
+    const explicitNightMatch = tripRequest.match(
+      /\b(\d+)\s*nights?\b/i
+    );
+
+    const isWeekendTrip = /Time Available:\s*Weekend\b/i.test(tripRequest);
+
+    const requestedCalendarDays = timeAvailableDaysMatch
+      ? Number(timeAvailableDaysMatch[1])
+      : isWeekendTrip
+        ? 3
+        : explicitNightMatch
+          ? Number(explicitNightMatch[1]) + 1
+          : null;
+
+    const requestedNightCount = requestedCalendarDays !== null
+      ? Math.max(0, requestedCalendarDays - 1)
+      : explicitNightMatch
+        ? Number(explicitNightMatch[1])
+        : null;
+
+    const maxDailyDrivingMatch = tripRequest.match(
+      /Maximum Daily Driving:\s*(\d+(?:\.\d+)?)\s*Hours?\b/i
+    );
+
+    const maximumDailyDrivingHours = maxDailyDrivingMatch
+      ? Math.min(8, Number(maxDailyDrivingMatch[1]))
+      : 8;
+
+    const hardTripLengthRule =
+      requestedCalendarDays !== null && requestedNightCount !== null
+        ? `
+HARD TRIP LENGTH — CODE-DETECTED AND AUTHORITATIVE:
+- EXACTLY ${requestedCalendarDays} calendar day${requestedCalendarDays === 1 ? "" : "s"} total.
+- EXACTLY ${requestedNightCount} overnight stay${requestedNightCount === 1 ? "" : "s"} total.
+- Day ${requestedCalendarDays} is the FINAL DAY.
+- Day ${requestedCalendarDays} MUST end at the ORIGINAL STARTING LOCATION by approximately 5:00 PM local time and never later than 5:00 PM.
+- NEVER create Day ${requestedCalendarDays + 1}.
+- NEVER create more or fewer than ${requestedNightCount} TONIGHT IN sections.
+- The final day has NO TONIGHT IN section.
+- The selected trip length is a hard limit. Never silently add a day or night.
+
+ROUND-TRIP PHASE STRUCTURE:
+- OUTBOUND: use the first portion of the trip to make realistic progress toward the requested destination.
+- DESTINATION: use the middle portion for the destination and requested adventures when time allows.
+- RETURN: start home early enough to reach the original starting location on the final day by about 5:00 PM.
+- Once the return phase starts, each major driving segment must make geographic progress toward home.
+- Do not overshoot the original starting location and backtrack.
+
+EPIC FEASIBILITY MATH:
+- Maximum Daily Driving is ${maximumDailyDrivingHours} hour${maximumDailyDrivingHours === 1 ? "" : "s"} of ACTUAL driving time per day for this request.
+- Meals, fuel, sightseeing, attractions, hikes, and sleep do NOT count against the driving-hour ceiling.
+- Estimate ONE-WAY driving time between the original starting location and requested destination.
+- Required outbound driving days = CEILING(one-way driving hours / ${maximumDailyDrivingHours}).
+- Required return driving days = the same calculation for the logical return route.
+- Minimum pure travel days = outbound driving days + return driving days.
+- Any remaining calendar days may be used for destination time and activities.
+- Do NOT call a trip impractical merely because the destination cannot be reached in one day.
+- Example: about 12 hours one way with a 6-hour daily limit requires 2 outbound days + 2 return days. A 5-day trip is practical and leaves 1 day for the destination.
+- Only call the trip impractical when the outbound AND return driving truly cannot fit inside ${requestedCalendarDays} calendar days while respecting the ${maximumDailyDrivingHours}-hour daily driving ceiling and the final-day return-home deadline.
+- If impractical, do not extend the trip. State the constraint clearly.
+`
+        : "";
+
     const isEpicRoadTrip =
       normalizedTripRequest.includes("epic road trip") ||
       normalizedTripRequest.includes("premium long-distance mode");
@@ -300,22 +367,9 @@ if (
         "create a complete itinerary specifically for"
       );
 
-    const excludedDestinationText =
-      recentDestinations.length > 0 &&
-      !isSpecificAdventure
-        ? `
-Avoid recommending these recently shown destinations unless the user
-specifically requested one of them:
-
-${recentDestinations
-  .map((name: string) => `- ${name}`)
-  .join("\n")}
-`
-        : "";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
 
     const discoveryInstructions = `
 Find 4 to 6 REAL road-trip destinations that fit the user's:
@@ -384,8 +438,11 @@ HARD DRIVING LIMIT:
 - Meals, fuel stops, sightseeing, attractions, hikes, and rest stops are additional time.
 - Choose a logical overnight stop before the daily driving limit is exceeded.
 - Apply the same driving limit to BOTH outbound and return-trip days.
-- The requested number of days covers the ENTIRE round trip, including outbound travel, destination stay, and return travel.
-- If the requested number of days is too short to complete the full round trip safely, clearly state that more days are required rather than exceeding the driving limit.
+- The selected number of calendar days covers the ENTIRE round trip: outbound travel, destination time, and return travel.
+- Do NOT assume a trip is impractical because the destination requires more than one driving day each way.
+- Split long drives across multiple days while staying within the selected daily driving ceiling.
+- Use the code-detected feasibility math below when a numeric trip length is available.
+- Never add extra days beyond the selected timeframe.
 
 MANDATORY OVERNIGHT LODGING:
 For EVERY night the traveler is away from the original starting location, including:
@@ -424,9 +481,17 @@ MANDATORY RETURN-TRIP STRUCTURE:
 - Include realistic return-route mileage and driving time.
 - Include worthwhile food, fuel/rest, scenic, historic, iconic, or unusual stops when appropriate.
 - Every return day ending away from home must contain a TONIGHT IN [CITY / AREA] lodging section.
-- The final itinerary day must end at the original starting location.
+- The original Starting Location is the HARD FINAL ENDPOINT of the return route.
+- Before adding any return-trip overnight stop, estimate whether the original Starting Location can be reached within the traveler's selected Maximum Daily Driving limit. If it can, continue directly home and DO NOT add another overnight stop.
+- Never choose an overnight city, attraction, restaurant, fuel stop, or scenic stop that requires driving past the original Starting Location and then backtracking to reach home.
+- On the return trip, each major route segment must make reasonable geographic progress toward the original Starting Location. Do not knowingly send the traveler farther away from home merely to create another itinerary day or lodging stop.
+- Return-trip overnight cities must be on or reasonably near a logical route toward the original Starting Location.
+- Avoid unnecessary backtracking, loops, and route reversals unless the traveler explicitly requested a specific attraction that requires the detour.
+- Do not add lodging at or beyond the original Starting Location. Once the traveler reaches the original Starting Location, the road trip is complete.
+- The final itinerary day must end at the EXACT original Starting Location supplied by the traveler, not a nearby major city, metro area, or substitute location.
+- The final day must NOT contain a TONIGHT IN lodging section after arriving home.
 - Do NOT substitute a short "return home" summary for the detailed return-trip itinerary.
-- Total mileage and total cost must represent the FULL ROUND TRIP.
+- Total mileage and total cost must represent the FULL ROUND TRIP and must not include unnecessary overshoot/backtracking mileage.
 
 Return exactly one adventure item representing the requested road trip.
 Use a matchScore of 100.
@@ -434,11 +499,44 @@ Use a matchScore of 100.
 
     const itineraryRequirements = `
 MANDATORY ITINERARY RULES:
-
+ROUND-TRIP TIMEFRAME — HARD RULE:
+- EVERY TrippinDays trip is a ROUND TRIP unless the traveler explicitly requests a one-way trip.
+- The original Starting Location is always the final destination of the trip.
+- The entire itinerary MUST fit inside the traveler's selected Time Available.
+- The traveler MUST arrive back at the ORIGINAL STARTING LOCATION no later than 5:00 PM local time on the FINAL DAY of the selected timeframe.
+- The final itinerary day is ALWAYS the return-home day.
+- Explicitly show the estimated arrival-home time on the final day.
+- The estimated arrival-home time must be 5:00 PM local time or earlier.
+- NEVER extend the trip beyond the selected timeframe.
+- NEVER add an extra travel day or overnight stay merely because the planned destination is too far away.
+- NEVER finish the itinerary at the destination, hotel, attraction, overnight city, or another nearby city.
+- NEVER substitute a nearby major city for the traveler's original Starting Location.
+- If necessary, shorten activities, remove detours, leave earlier, choose closer overnight stops, or choose a closer destination so the traveler can return home by 5:00 PM on the final day.
+- If the specifically requested destination cannot realistically be completed as a round trip within the selected timeframe and driving limits, clearly say that it is not practical within those constraints instead of silently adding days or nights.
+- For N requested nights, use exactly N overnight stays. The following day is the final return-home day and must end at the original Starting Location by 5:00 PM.
 Every TrippinDays itinerary MUST include the user's main request PLUS
 all of the practical travel sections listed below.
 
 These sections are REQUIRED even when the traveler did not ask for them.
+
+WEEKEND MODE — HARD CALENDAR RULE:
+- If the user's Time Available is "Weekend" or the request otherwise identifies this as a weekend trip, treat it as exactly THREE CALENDAR DAYS: FRIDAY, SATURDAY, and SUNDAY.
+- Weekend Mode always begins on Friday and always ends at the ORIGINAL STARTING LOCATION on Sunday.
+- If a Friday Trip Date / Start Date is supplied, Day 1 is that Friday, Day 2 is the following Saturday, and Day 3 is the following Sunday.
+- A standard Weekend Mode trip has EXACTLY TWO overnight stays: Friday night and Saturday night.
+- NEVER create a Sunday-night lodging stay in Weekend Mode.
+- Sunday is always the return-home day.
+- Schedule Sunday's activities and driving so the traveler reaches the ORIGINAL STARTING LOCATION no later than 5:00 PM local time at the starting location.
+- The Sunday itinerary must explicitly show an estimated arrival-home time of 5:00 PM local time or earlier.
+- Do not schedule an attraction, meal, scenic stop, detour, or other activity that would cause arrival home after 5:00 PM Sunday.
+- If necessary, shorten Sunday's activities, leave earlier, or choose a closer weekend destination so the traveler can be home by 5:00 PM.
+- Do not pass the original starting location, substitute a nearby city for it, or add lodging after reaching home.
+- Build distinct DAY 1 — FRIDAY, DAY 2 — SATURDAY, and DAY 3 — SUNDAY sections.
+- Day 1 must end with the Friday-night lodging section.
+- Day 2 must end with the Saturday-night lodging section.
+- Day 3 must end at the original starting location by 5:00 PM local time and must NOT contain a lodging section.
+- Weekend Mode must NEVER be collapsed into a one-day loop and must NEVER be extended into Monday.
+- If a requested destination cannot realistically support this Friday-through-Sunday structure within the user's budget, driving limits, and 5:00 PM Sunday return requirement, say it is not practical for Weekend Mode and choose/offer a closer realistic weekend-compatible plan rather than adding a third night.
 
 1. MAIN ADVENTURE / REQUESTED EXPERIENCES
 
@@ -552,7 +650,64 @@ NEAREST HOSPITAL
   should locate the nearest emergency facility in Maps before departure
   rather than inventing one.
 
-7. CHECK BEFORE LEAVING
+7. OVERNIGHT LODGING
+
+If the itinerary spans more than one calendar day OR requires the traveler to sleep away from the original starting location, lodging is MANDATORY for every night away from home.
+
+MULTI-DAY NIGHT COUNT RULE:
+USER-REQUESTED NIGHT COUNT — HARD LIMIT:
+- If the traveler explicitly requests a number of nights, that number is authoritative.
+- "1 night" means exactly 1 overnight stay and normally 2 calendar days.
+- "2 nights" means exactly 2 overnight stays and normally 3 calendar days.
+- "3 nights" means exactly 3 overnight stays and normally 4 calendar days.
+- "4 nights" means exactly 4 overnight stays and normally 5 calendar days.
+- In general, N requested nights means exactly N TONIGHT IN [CITY / AREA] lodging sections.
+- NEVER add extra overnight stays beyond the number of nights explicitly requested by the traveler.
+- Do not reinterpret "4 nights" as 4 travel days.
+- The final calendar day is the return-home day and does not receive another lodging stay.
+- If the requested route cannot be completed safely within the requested number of nights while respecting the daily driving limit, clearly state that the trip is not practical under those constraints.
+- In that case, recommend either increasing the number of nights, increasing the allowed daily driving time up to the 8-hour maximum, or choosing a closer destination.
+- NEVER silently extend a 4-night trip into 5, 6, or more nights.
+- A trip spanning N calendar days normally requires N - 1 overnight stays unless the traveler explicitly returns to the original starting location before the final day.
+- WEEKEND MODE IS STRICT: Friday through Sunday = exactly 3 calendar days and exactly 2 overnight stays: Friday night and Saturday night only.
+- NEVER add a third overnight stay to Weekend Mode.
+- NEVER add Sunday-night lodging to Weekend Mode.
+- Sunday in Weekend Mode must end at the original starting location by 5:00 PM local time.
+- Saturday through Sunday = 2 calendar days = 1 overnight stay.
+- Monday through Friday = 5 calendar days = 4 overnight stays.
+- Every itinerary day that ends away from the original starting location must contain exactly one TONIGHT IN [CITY / AREA] lodging section.
+- Do not skip an overnight date.
+- If a Start Date is supplied, keep the overnight stays aligned with the actual calendar dates in chronological order.
+- The final day must not contain a lodging section when the traveler returns to the original starting location that day.
+
+For each overnight stay, include a clearly labeled section in this exact format:
+
+TONIGHT IN [CITY / AREA]
+
+HOTEL / MOTEL
+- Recommend 1 to 3 REAL hotels or motels only when reasonably confident they exist.
+
+CAMPGROUND / RV
+- Recommend 1 to 3 REAL campgrounds or RV options only when reasonably confident they exist.
+
+CABIN / ALTERNATIVE
+- Include a REAL cabin, lodge, hostel, or other practical option when appropriate.
+
+For each lodging option:
+- Include the city or area.
+- Give a short reason it fits the itinerary.
+- Consider budget, pet-friendly needs, parking, and route convenience when relevant.
+- Never invent a property or campground.
+- Never claim current price, vacancy, room availability, campsite availability, amenities, or reservation status is verified unless live booking data was supplied.
+- Clearly label lodging costs as estimates.
+- Do not fabricate booking or reservation URLs.
+
+End every overnight section with:
+Current lodging availability and reservation details must be verified before booking.
+
+Do NOT add an overnight lodging section for the final day if the traveler returns to the original starting location that day.
+
+8. CHECK BEFORE LEAVING
 
 Every itinerary MUST END with a clearly labeled section:
 
@@ -579,28 +734,25 @@ The itinerary should feel like a complete road-trip assistant,
 not merely a list of attractions.
 `;
 
-const response = await openai.responses.create({
-  model: "gpt-5.6-luna",
-    reasoning: { effort: "none" },
-    text: { verbosity: "low" },
-  input: `
+const basePrompt = `
 You are TrippinDays, an AI road-trip assistant.
 
 The user entered:
 
 ${tripRequest}
 
-${excludedDestinationText}
+
 
 ${
   isEpicRoadTrip
     ? epicRoadTripInstructions
+    
     : isSpecificAdventure
       ? specificAdventureInstructions
       : discoveryInstructions
 }
-
 ${itineraryRequirements}
+${hardTripLengthRule}
 Budget breakdown requirements:
 - Estimate realistic costs for the generated trip.
 - fuel = estimated round-trip fuel cost.
@@ -698,10 +850,14 @@ Important:
   Nearest Hospital, and Check Before Leaving are mandatory.
 - Include [[LIVE_WEATHER]] exactly once in plan.
 - musicSuggestions must contain exactly 3 real, widely known songs with real artist names that fit the mood, destination, or style of the trip. Do not invent songs or artists.
-        `,
+        `;
 
-        
-      });
+const response = await openai.responses.create({
+  model: "gpt-5.6-luna",
+  reasoning: { effort: "none" },
+  text: { verbosity: "low" },
+  input: basePrompt,
+});
 if (!response.output_text) {
   throw new Error(
     "OpenAI returned an empty response."
@@ -751,6 +907,65 @@ if (start === -1 || end === -1) {
 const cleanedJson = jsonOnly.slice(start, end + 1);
 
 trip = JSON.parse(cleanedJson) as GeminiTrip;
+
+      if (
+        requestedCalendarDays !== null &&
+        requestedNightCount !== null &&
+        isEpicRoadTrip
+      ) {
+        const dayMatches = Array.from(
+          (trip.plan || "").matchAll(/\bDAY\s+(\d+)\b/gi)
+        ).map((match) => Number(match[1]));
+
+        const uniqueDayNumbers = new Set(dayMatches);
+        const overnightCount = (
+          (trip.plan || "").match(/TONIGHT IN\s+[^\n]+/gi) || []
+        ).length;
+
+        const lengthIsWrong =
+          uniqueDayNumbers.size !== requestedCalendarDays ||
+          overnightCount !== requestedNightCount ||
+          uniqueDayNumbers.has(requestedCalendarDays + 1);
+
+        if (lengthIsWrong) {
+          const correctionPrompt = `${basePrompt}
+
+CRITICAL CORRECTION — YOUR PREVIOUS OUTPUT FAILED THE HARD TRIP LENGTH CHECK:
+- Required calendar days: EXACTLY ${requestedCalendarDays}.
+- Required overnight stays: EXACTLY ${requestedNightCount}.
+- Required final day: Day ${requestedCalendarDays}.
+- Required final endpoint: ORIGINAL STARTING LOCATION by about 5:00 PM local time.
+- NEVER include Day ${requestedCalendarDays + 1}.
+- Include EXACTLY ${requestedNightCount} TONIGHT IN sections, one for each night away from home.
+- Do not remove lodging. Do not add extra lodging.
+- Rebuild the COMPLETE JSON response from scratch so the itinerary satisfies these requirements.
+- Keep the requested destination unless the round trip is mathematically impossible under the daily driving ceiling.
+- Remember: a roughly 12-hour one-way trip with a 6-hour daily driving ceiling takes 2 driving days each way, so a 5-day round trip is practical with 1 destination day.
+
+Return ONLY valid JSON in the exact structure already specified.`;
+
+          const correctionResponse = await openai.responses.create({
+            model: "gpt-5.6-luna",
+            reasoning: { effort: "none" },
+            text: { verbosity: "low" },
+            input: correctionPrompt,
+          });
+
+          if (correctionResponse.output_text) {
+            const correctedFirstBrace = correctionResponse.output_text.indexOf("{");
+            const correctedLastBrace = correctionResponse.output_text.lastIndexOf("}");
+
+            if (correctedFirstBrace !== -1 && correctedLastBrace !== -1) {
+              const correctedJson = correctionResponse.output_text
+                .slice(correctedFirstBrace, correctedLastBrace + 1)
+                .replace(/,\s*}/g, "}")
+                .replace(/,\s*]/g, "]");
+
+              trip = JSON.parse(correctedJson) as GeminiTrip;
+            }
+          }
+        }
+      }
     } catch (parseError) {
       console.error(
         "Gemini JSON parse failed:",
