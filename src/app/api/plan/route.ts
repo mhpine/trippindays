@@ -289,9 +289,14 @@ if (
       );
     }
 
-    const isSpecificAdventure = tripRequest
-      .toLowerCase()
-      .includes(
+    const normalizedTripRequest = tripRequest.toLowerCase();
+
+    const isEpicRoadTrip =
+      normalizedTripRequest.includes("epic road trip") ||
+      normalizedTripRequest.includes("premium long-distance mode");
+
+    const isSpecificAdventure =
+      normalizedTripRequest.includes(
         "create a complete itinerary specifically for"
       );
 
@@ -358,6 +363,72 @@ Build one complete itinerary only for the destination named in the request.
 
 Return exactly one item in the adventures array.
 That one item must be the selected destination.
+Use a matchScore of 100.
+`;
+
+    const epicRoadTripInstructions = `
+THIS IS AN EPIC MULTI-DAY ROAD TRIP.
+
+The traveler already supplied a starting location and final destination.
+
+Do NOT search for multiple competing destinations.
+Do NOT replace the requested final destination.
+Build ONE complete ROUND-TRIP multi-day road trip from the supplied starting location to the supplied destination AND BACK to the original starting location.
+
+The itinerary must not end at the destination. After the destination stay, continue with fully planned return-trip days until the traveler is back at the original starting location.
+
+HARD DRIVING LIMIT:
+- Never exceed 8 hours of actual driving in one day.
+- If the traveler selected a lower Maximum Daily Driving limit, that lower limit is the hard daily ceiling.
+- Driving time means time behind the wheel only.
+- Meals, fuel stops, sightseeing, attractions, hikes, and rest stops are additional time.
+- Choose a logical overnight stop before the daily driving limit is exceeded.
+- Apply the same driving limit to BOTH outbound and return-trip days.
+- The requested number of days covers the ENTIRE round trip, including outbound travel, destination stay, and return travel.
+- If the requested number of days is too short to complete the full round trip safely, clearly state that more days are required rather than exceeding the driving limit.
+
+MANDATORY OVERNIGHT LODGING:
+For EVERY night the traveler is away from the original starting location, including:
+- outbound overnight stops,
+- the stay at the final destination,
+- and return-trip overnight stops,
+include:
+
+TONIGHT IN [CITY / AREA]
+
+HOTEL / MOTEL
+- Recommend 1 to 3 REAL hotels or motels when reasonably confident they exist.
+
+CAMPGROUND / RV
+- Recommend 1 to 3 REAL campgrounds or RV options when reasonably confident they exist.
+
+CABIN / ALTERNATIVE
+- Include a REAL cabin, lodge, hostel, or other practical option when appropriate.
+
+For each lodging option:
+- Include the city or area.
+- Give a short reason it fits the route.
+- Consider budget, pet-friendly needs, parking, and route convenience when relevant.
+- Never invent a property or campground.
+- Never claim current price, vacancy, room availability, campsite availability, amenities, or reservation status is verified unless live booking data was supplied.
+- Clearly label lodging costs as estimates.
+- Do not fabricate booking or reservation URLs.
+
+End every overnight section with:
+Current lodging availability and reservation details must be verified before booking.
+
+MANDATORY RETURN-TRIP STRUCTURE:
+- Clearly mark when the RETURN TRIP begins.
+- Continue day-by-day planning from the destination back to the original starting location.
+- Each return day must have a real calendar date when a Start Date was supplied.
+- Include realistic return-route mileage and driving time.
+- Include worthwhile food, fuel/rest, scenic, historic, iconic, or unusual stops when appropriate.
+- Every return day ending away from home must contain a TONIGHT IN [CITY / AREA] lodging section.
+- The final itinerary day must end at the original starting location.
+- Do NOT substitute a short "return home" summary for the detailed return-trip itinerary.
+- Total mileage and total cost must represent the FULL ROUND TRIP.
+
+Return exactly one adventure item representing the requested road trip.
 Use a matchScore of 100.
 `;
 
@@ -522,9 +593,11 @@ ${tripRequest}
 ${excludedDestinationText}
 
 ${
-  isSpecificAdventure
-    ? specificAdventureInstructions
-    : discoveryInstructions
+  isEpicRoadTrip
+    ? epicRoadTripInstructions
+    : isSpecificAdventure
+      ? specificAdventureInstructions
+      : discoveryInstructions
 }
 
 ${itineraryRequirements}
@@ -715,7 +788,7 @@ trip = JSON.parse(cleanedJson) as GeminiTrip;
       );
 
     const adventures =
-      isSpecificAdventure
+      isSpecificAdventure || isEpicRoadTrip
         ? deduplicated.slice(0, 1)
         : deduplicated.slice(0, 6);
 
@@ -919,9 +992,11 @@ musicSuggestions: Array.isArray(trip.musicSuggestions)
       liveChecks,
 
       itineraryMode:
-        isSpecificAdventure
-          ? "specific"
-          : "discovery",
+        isEpicRoadTrip
+          ? "epic-road-trip"
+          : isSpecificAdventure
+            ? "specific"
+            : "discovery",
     });
   } catch (error) {
     console.error(

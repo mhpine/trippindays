@@ -58,6 +58,14 @@ type BudgetBreakdown = {
   other: number;
   total: number;
 };
+
+type OvernightStop = {
+  stage: string;
+  location: string;
+  dayNumber: number | null;
+  checkIn: string;
+  checkOut: string;
+};
 export default function TripPage() {
   const [request, setRequest] = useState("");
  const [aiPlan, setAiPlan] = useState ("");
@@ -233,10 +241,16 @@ const recentForRequest: string[] = recentSaved
   const budget = getValue(request, "Budget") || "Not specified";
   const time = getValue(request, "Time Available") || "Not specified";
   const travelers = getValue(request, "Travelers") || "Not specified";
+  const startDate = getValue(request, "Start Date");
 
   const sections = useMemo(
     () => parsePlan(aiPlan, destination),
     [aiPlan, destination]
+  );
+
+  const overnightStops = useMemo(
+    () => parseOvernightStops(aiPlan, startDate, destination),
+    [aiPlan, startDate, destination]
   );
 useEffect(() => {
   async function loadNearbyEvents() {
@@ -1291,7 +1305,12 @@ className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text
   </section>
 )}
 
-              <WeatherPanel liveChecks={liveChecks} onNavigate={() => navigate()} />
+              <WeatherPanel
+  liveChecks={liveChecks}
+  overnightStops={overnightStops}
+  travelers={travelers}
+  onNavigate={() => navigate()}
+/>
             </section>
 
             <section className="mt-10">
@@ -1569,11 +1588,51 @@ function AdventureCard({
 
 function WeatherPanel({
   liveChecks,
+  overnightStops,
+  travelers,
   onNavigate,
 }: {
   liveChecks: LiveChecks | null;
+  overnightStops: OvernightStop[];
+  travelers: string;
   onNavigate: () => void;
 }) {
+  const [bookingChoice, setBookingChoice] = useState<{
+    stop: OvernightStop;
+    kind: "Hotels & Motels" | "Campgrounds & RV" | "Cabins & Lodges";
+  } | null>(null);
+
+  function buildExpediaHotelUrl(stop: OvernightStop) {
+    const params = new URLSearchParams({
+      destination: stop.location,
+      flexibility: "0_DAY",
+      adults: getAdultCount(travelers).toString(),
+      rooms: "1",
+
+      // TrippinDays Expedia affiliate tracking.
+      clickref: "1110l4oyBMj5",
+      affcid: "US.DIRECT.PHG.1011l438666.1100l68075",
+      ref_id: "1110l4oyBMj5",
+      my_ad: "AFF.US.DIRECT.PHG.1011l438666.1100l68075",
+      afflid: "1110l4oyBMj5",
+      affdtl: "PHG.1110l4oyBMj5.PZjVvuZ2Bu",
+
+      sort: "RECOMMENDED",
+      useRewards: "false",
+    });
+
+    if (stop.checkIn) {
+      params.set("d1", stop.checkIn);
+      params.set("startDate", stop.checkIn);
+    }
+
+    if (stop.checkOut) {
+      params.set("d2", stop.checkOut);
+      params.set("endDate", stop.checkOut);
+    }
+
+    return `https://www.expedia.com/Hotel-Search?${params.toString()}`;
+  }
   if (!liveChecks) {
     return (
 <div
@@ -1658,6 +1717,133 @@ function WeatherPanel({
   : "✓ No active weather alerts"}
   </p>
 </div>
+
+{overnightStops.length > 0 && (
+  <div className="mt-5 space-y-4">
+    <p className="text-xs font-black uppercase tracking-wider text-white/60">
+      Overnight Stays by Trip Stage
+    </p>
+
+    {overnightStops.map((stop, index) => (
+      <div
+        key={`${stop.stage}-${stop.location}-${index}`}
+        className="rounded-2xl border border-white/10 bg-black/20 p-4"
+      >
+        <p className="text-xs font-black uppercase tracking-wider text-cyan-300">
+          {stop.stage}
+        </p>
+
+        <h3 className="mt-1 text-lg font-black">
+          🌙 {overnightStayLabel(stop)}
+        </h3>
+
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <button
+            type="button"
+            onClick={() => setBookingChoice({ stop, kind: "Hotels & Motels" })}
+            className="rounded-xl border border-white/10 bg-black/25 p-3 text-left transition hover:border-sky-300/40 hover:bg-black/35"
+          >
+            <div className="text-xl">🏨</div>
+            <p className="mt-2 text-sm font-black">Hotels & Motels</p>
+            <p className="mt-1 text-xs text-white/55">Book This Stop →</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setBookingChoice({ stop, kind: "Campgrounds & RV" })}
+            className="rounded-xl border border-white/10 bg-black/25 p-3 text-left transition hover:border-sky-300/40 hover:bg-black/35"
+          >
+            <div className="text-xl">⛺</div>
+            <p className="mt-2 text-sm font-black">Campgrounds & RV</p>
+            <p className="mt-1 text-xs text-white/55">Search This Stop →</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setBookingChoice({ stop, kind: "Cabins & Lodges" })}
+            className="rounded-xl border border-white/10 bg-black/25 p-3 text-left transition hover:border-sky-300/40 hover:bg-black/35"
+          >
+            <div className="text-xl">🛖</div>
+            <p className="mt-2 text-sm font-black">Cabins & Lodges</p>
+            <p className="mt-1 text-xs text-white/55">Book This Stop →</p>
+          </button>
+        </div>
+
+        <p className="mt-3 text-xs text-white/45">
+          Expedia handles current prices, availability, and booking. Search the overnight city shown above.
+        </p>
+      </div>
+    ))}
+  </div>
+)}
+
+{bookingChoice && (
+  <div
+    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Lodging booking details"
+    onClick={() => setBookingChoice(null)}
+  >
+    <div
+      className="w-full max-w-lg rounded-3xl border border-white/15 bg-[#0b1b2f] p-6 shadow-2xl"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
+        {bookingChoice.stop.stage}
+      </p>
+
+      <h3 className="mt-2 text-2xl font-black">
+        {bookingChoice.kind}
+      </h3>
+
+      <div className="mt-5 space-y-3 rounded-2xl bg-black/25 p-4">
+        <p className="font-bold">📍 {bookingChoice.stop.location}</p>
+
+        {bookingChoice.stop.checkIn && (
+          <p className="font-bold">
+            📅 Check-in: {formatBookingDate(bookingChoice.stop.checkIn)}
+          </p>
+        )}
+
+        {bookingChoice.stop.checkOut && (
+          <p className="font-bold">
+            📅 Check-out: {formatBookingDate(bookingChoice.stop.checkOut)}
+          </p>
+        )}
+
+        <p className="font-bold">👥 Travelers: {travelers}</p>
+      </div>
+
+      <p className="mt-4 text-sm leading-6 text-white/65">
+        Expedia will open with this overnight stop, dates, and traveler count already filled in through the TrippinDays affiliate booking link.
+      </p>
+
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => setBookingChoice(null)}
+          className="rounded-2xl border border-white/15 px-5 py-3 font-black hover:bg-white/10"
+        >
+          Back
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const expediaUrl = buildExpediaHotelUrl(bookingChoice.stop);
+            window.open(expediaUrl, "_blank", "noopener,noreferrer");
+            setBookingChoice(null);
+          }}
+          className="rounded-2xl bg-sky-500 px-5 py-3 font-black text-white hover:bg-sky-400"
+        >
+          Continue to Expedia →
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
      
     </div>
     
@@ -1697,6 +1883,158 @@ function getValue(text: string, label: string) {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = text.match(new RegExp(`^${escaped}:\\s*(.+)$`, "im"));
   return match?.[1]?.trim() || "";
+}
+
+function parseOvernightStops(
+  plan: string,
+  tripStartDate: string,
+  finalDestination: string
+): OvernightStop[] {
+  const lines = plan
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) =>
+      line
+        .trim()
+        .replace(/^#{1,6}\s*/, "")
+        .replace(/^\*\*(.+)\*\*$/, "$1")
+    )
+    .filter(Boolean);
+
+  const stops: OvernightStop[] = [];
+  let currentDay = "";
+  let currentDayNumber: number | null = null;
+  let overnightNumber = 0;
+
+  for (const line of lines) {
+    const dayMatch = line.match(/^day\s*(\d+)\b(.*)$/i);
+
+    if (dayMatch) {
+      currentDayNumber = Number(dayMatch[1]);
+      const extra = dayMatch[2]?.replace(/^[-–—:\s]+/, "").trim();
+      currentDay = extra
+        ? `Day ${currentDayNumber} — ${extra}`
+        : `Day ${currentDayNumber}`;
+    }
+
+    const tonightMatch = line.match(/^tonight\s+in\s+(.+?)[:.]?$/i);
+
+    if (tonightMatch) {
+      overnightNumber += 1;
+
+      const checkIn =
+        tripStartDate && currentDayNumber
+          ? addCalendarDays(tripStartDate, currentDayNumber - 1)
+          : "";
+
+      const checkOut =
+        tripStartDate && currentDayNumber
+          ? addCalendarDays(tripStartDate, currentDayNumber)
+          : "";
+
+      stops.push({
+        stage: currentDay || `Overnight Stop ${overnightNumber}`,
+        location: tonightMatch[1].replace(/[:.]$/, "").trim(),
+        dayNumber: currentDayNumber,
+        checkIn,
+        checkOut,
+      });
+    }
+  }
+
+  const cleanFinalDestination = finalDestination.trim();
+
+  if (cleanFinalDestination && currentDayNumber) {
+    const normalizedFinal = cleanFinalDestination.toLowerCase();
+
+    const alreadyIncluded = stops.some((stop) => {
+      const normalizedStop = stop.location.toLowerCase();
+      return (
+        normalizedStop === normalizedFinal ||
+        normalizedStop.includes(normalizedFinal) ||
+        normalizedFinal.includes(normalizedStop)
+      );
+    });
+
+    if (!alreadyIncluded) {
+      const checkIn = tripStartDate
+        ? addCalendarDays(tripStartDate, currentDayNumber - 1)
+        : "";
+
+      const checkOut = tripStartDate
+        ? addCalendarDays(tripStartDate, currentDayNumber)
+        : "";
+
+      stops.push({
+        stage: currentDay || `Day ${currentDayNumber}`,
+        location: cleanFinalDestination,
+        dayNumber: currentDayNumber,
+        checkIn,
+        checkOut,
+      });
+    }
+  }
+
+  return stops;
+}
+
+function overnightStayLabel(stop: OvernightStop): string {
+  const datePart = stop.stage
+    .replace(/^Day\s*\d+\s*[—–-]?\s*/i, "")
+    .trim();
+
+  if (datePart && !/^Day\s*\d+$/i.test(stop.stage)) {
+    return `${datePart} — ${stop.location}`;
+  }
+
+  return `Stay — ${stop.location}`;
+}
+
+function getAdultCount(travelers: string): number {
+  const value = travelers.toLowerCase();
+
+  const explicitAdults = value.match(/(\d+)\s*adults?/i);
+  if (explicitAdults) return Math.max(1, Number(explicitAdults[1]));
+
+  if (value.includes("couple")) return 2;
+  if (value.includes("just me") || value.includes("solo")) return 1;
+  if (value.includes("me and my dog")) return 1;
+  if (value.includes("friends")) return 2;
+  if (value.includes("family")) return 2;
+
+  const leadingNumber = value.match(/^\s*(\d+)\b/);
+  if (leadingNumber) return Math.max(1, Number(leadingNumber[1]));
+
+  return 1;
+}
+
+function addCalendarDays(dateText: string, days: number): string {
+  const match = dateText.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+
+  const date = new Date(
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  );
+
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function formatBookingDate(dateText: string): string {
+  const match = dateText.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return dateText;
+
+  const date = new Date(
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  );
+
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
 }
 
 function parsePlan(plan: string, fallbackDestination: string): Section[] {
@@ -1767,7 +2105,7 @@ function parsePlan(plan: string, fallbackDestination: string): Section[] {
 function isHeading(line: string) {
   return (
     /^\d{1,2}(:\d{2})?\s*(AM|PM)?\s*[-–—:]/i.test(line) ||
-    /^(morning|afternoon|evening|breakfast|lunch|dinner|departure|arrival|return|stop\s*\d+|day\s*\d+|roadtunes|weather|cost|budget|check before leaving)/i.test(
+    /^(morning|afternoon|evening|breakfast|lunch|dinner|departure|arrival|return|stop\s*\d+|day\s*\d+|tonight\s+in|hotel\s*\/?\s*motel|campground\s*\/?\s*rv|cabin\s*\/?\s*alternative|roadtunes|weather|cost|budget|check before leaving)/i.test(
       line
     ) ||
     (line.length < 70 && /:$/.test(line))
