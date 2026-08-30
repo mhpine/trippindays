@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type FeaturedTrip = {
@@ -21,68 +20,434 @@ type FeaturedTrip = {
   safetyNotes: string[];
 };
 
-const featuredTrip: FeaturedTrip = {
-  title: "Mount Rainier Scenic Day Adventure",
-  destination: "Mount Rainier National Park",
-  region: "Washington",
-  description:
-    "A full-day mountain escape featuring waterfalls, alpine viewpoints, easy scenic walks, picnic stops, and memorable photo opportunities.",
-  image: "/images/rainier.png",
-  estimatedCost: 95,
-  estimatedDriveTime: "About 2 hours each way",
-  estimatedDistance: "About 95 miles each way",
-  tripLength: "Full Day",
-  difficulty: "Easy to Moderate",
-  petFriendly: false,
-  highlights: [
-    "Paradise viewpoints",
-    "Narada Falls",
-    "Reflection Lakes",
-    "Short scenic walks",
-    "Mountain picnic stop",
-    "Sunset photo opportunities",
-  ],
-  packingList: [
-    "Water",
-    "Layered clothing",
-    "Rain jacket",
-    "Comfortable walking shoes",
-    "Phone charger",
-    "Snacks or picnic lunch",
-    "Camera",
-  ],
-  safetyNotes: [
-    "Check current park road conditions before leaving.",
-    "Weather can change quickly at higher elevations.",
-    "Carry water and stay on marked trails.",
-    "Verify entrance fees, closures, and reservation requirements.",
-  ],
+type RegionKey =
+  | "pacific-northwest"
+  | "west"
+  | "southwest"
+  | "mountain"
+  | "midwest"
+  | "south"
+  | "southeast"
+  | "northeast";
+
+type RegionalFeaturedTrip = FeaturedTrip & {
+  regionKey: RegionKey;
+  emoji: string;
 };
 
-const relatedTrips = [
+const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
   {
-    title: "Olympic Rainforest Escape",
-    region: "Olympic Peninsula, Washington",
+    title: "Mount Rainier Scenic Day Adventure",
+    destination: "Mount Rainier National Park",
+    region: "Washington",
+    regionKey: "pacific-northwest",
+    emoji: "🏔️",
+    description: "A mountain escape with waterfalls, alpine viewpoints, scenic walks, picnic stops, and unforgettable views.",
+    image: "/images/banner1.png",
+    estimatedCost: 95,
+    estimatedDriveTime: "About 2 hours each way",
+    estimatedDistance: "About 95 miles each way",
+    tripLength: "Full Day",
+    difficulty: "Easy to Moderate",
+    petFriendly: false,
+    highlights: ["Paradise viewpoints", "Narada Falls", "Reflection Lakes", "Short scenic walks", "Mountain picnic stop", "Sunset photo opportunities"],
+    packingList: ["Water", "Layered clothing", "Rain jacket", "Comfortable walking shoes", "Phone charger", "Snacks or picnic lunch", "Camera"],
+    safetyNotes: ["Check current park road conditions before leaving.", "Weather can change quickly at higher elevations.", "Carry water and stay on marked trails.", "Verify entrance fees, closures, and reservation requirements."],
+  },
+  {
+    title: "Olympic Peninsula Wild Coast Escape",
+    destination: "Olympic National Park",
+    region: "Washington",
+    regionKey: "pacific-northwest",
     emoji: "🌲",
-    cost: 110,
+    description: "Rainforest trails, dramatic Pacific beaches, waterfalls, and moody coastal scenery packed into one memorable getaway.",
+    image: "/images/banner.png",
+    estimatedCost: 145,
+    estimatedDriveTime: "About 2–3 hours each way",
+    estimatedDistance: "About 130 miles each way",
+    tripLength: "Weekend",
+    difficulty: "Easy to Moderate",
+    petFriendly: false,
+    highlights: ["Hoh Rain Forest", "Ruby Beach", "Lake Crescent", "Madison Falls", "Pacific viewpoints", "Small-town food stops"],
+    packingList: ["Rain shell", "Water", "Layers", "Walking shoes", "Portable charger", "Snacks", "Binoculars"],
+    safetyNotes: ["Check coastal weather and tide conditions.", "Allow extra time for winding roads.", "Stay back from driftwood during rough surf.", "Verify seasonal road closures."],
   },
   {
-    title: "Mount St. Helens Viewpoint Tour",
-    region: "Southwest Washington",
-    emoji: "🌋",
-    cost: 85,
-  },
-  {
-    title: "Columbia River Gorge Waterfalls",
+    title: "Columbia Gorge Waterfall Run",
+    destination: "Columbia River Gorge",
     region: "Oregon",
+    regionKey: "pacific-northwest",
     emoji: "💦",
-    cost: 90,
+    description: "A waterfall-heavy drive through the Columbia Gorge with viewpoints, short walks, historic highway stops, and great food.",
+    image: "/images/banner1.png",
+    estimatedCost: 90,
+    estimatedDriveTime: "About 2 hours each way",
+    estimatedDistance: "About 110 miles each way",
+    tripLength: "Full Day",
+    difficulty: "Easy",
+    petFriendly: true,
+    highlights: ["Multnomah Falls", "Vista House", "Historic Columbia River Highway", "Hood River", "Waterfall viewpoints", "Local food stops"],
+    packingList: ["Water", "Rain jacket", "Walking shoes", "Camera", "Snacks", "Dog supplies if needed"],
+    safetyNotes: ["Expect wet and slippery paths near waterfalls.", "Check parking and timed-entry rules where applicable.", "Watch for cyclists on the historic highway."],
+  },
+  {
+    title: "Redwood Giants Road Trip",
+    destination: "Redwood National and State Parks",
+    region: "Northern California",
+    regionKey: "west",
+    emoji: "🌳",
+    description: "Cruise beneath giant redwoods, stop at fern-lined trails, and mix forest scenery with the rugged Northern California coast.",
+    image: "/images/banner.png",
+    estimatedCost: 160,
+    estimatedDriveTime: "Varies by starting point",
+    estimatedDistance: "Regional road trip",
+    tripLength: "Weekend",
+    difficulty: "Easy to Moderate",
+    petFriendly: true,
+    highlights: ["Avenue of the Giants", "Prairie Creek", "Coastal overlooks", "Massive redwood groves", "Scenic drives", "Small coastal towns"],
+    packingList: ["Layers", "Rain jacket", "Water", "Walking shoes", "Camera", "Offline maps"],
+    safetyNotes: ["Cell service can be limited.", "Watch for elk near roadways.", "Check trail and road conditions before departure."],
+  },
+  {
+    title: "Yosemite Valley Greatest Hits",
+    destination: "Yosemite National Park",
+    region: "California",
+    regionKey: "west",
+    emoji: "🏞️",
+    description: "Iconic granite cliffs, waterfalls, valley viewpoints, and easy scenic walks through one of America’s classic landscapes.",
+    image: "/images/banner1.png",
+    estimatedCost: 175,
+    estimatedDriveTime: "Varies by starting point",
+    estimatedDistance: "Regional road trip",
+    tripLength: "Weekend",
+    difficulty: "Easy to Moderate",
+    petFriendly: false,
+    highlights: ["Tunnel View", "Yosemite Falls", "El Capitan", "Valley Loop", "Merced River", "Sunset viewpoints"],
+    packingList: ["Water", "Layers", "Sun protection", "Walking shoes", "Snacks", "Portable charger"],
+    safetyNotes: ["Reservations may be required seasonally.", "Arrive early for parking.", "Keep food secured from wildlife."],
+  },
+  {
+    title: "Sedona Red Rock Weekend",
+    destination: "Sedona",
+    region: "Arizona",
+    regionKey: "southwest",
+    emoji: "🌄",
+    description: "Red-rock viewpoints, scenic drives, short hikes, sunsets, and a lively food scene make this an easy Southwest escape.",
+    image: "/images/banner.png",
+    estimatedCost: 180,
+    estimatedDriveTime: "Varies by starting point",
+    estimatedDistance: "Regional road trip",
+    tripLength: "Weekend",
+    difficulty: "Easy to Moderate",
+    petFriendly: true,
+    highlights: ["Red Rock Scenic Byway", "Airport Mesa", "Bell Rock", "Oak Creek", "Tlaquepaque", "Sunset viewpoints"],
+    packingList: ["Water", "Sun protection", "Hiking shoes", "Layers", "Camera", "Dog water if needed"],
+    safetyNotes: ["Heat can be intense.", "Carry more water than you think you need.", "Parking fills early at popular trailheads."],
+  },
+  {
+    title: "Utah Canyon Country Sampler",
+    destination: "Zion National Park",
+    region: "Utah",
+    regionKey: "southwest",
+    emoji: "🏜️",
+    description: "Towering canyon walls, desert scenery, riverside walks, and unforgettable overlooks in southern Utah.",
+    image: "/images/banner1.png",
+    estimatedCost: 190,
+    estimatedDriveTime: "Varies by starting point",
+    estimatedDistance: "Regional road trip",
+    tripLength: "Weekend",
+    difficulty: "Moderate",
+    petFriendly: false,
+    highlights: ["Zion Canyon", "Pa’rus Trail", "Canyon Overlook", "Virgin River", "Springdale", "Desert sunsets"],
+    packingList: ["Water", "Sun hat", "Hiking shoes", "Layers", "Snacks", "Portable charger"],
+    safetyNotes: ["Check shuttle operations.", "Watch heat and flash-flood forecasts.", "Some trails may require permits."],
+  },
+  {
+    title: "Rocky Mountain High Country Escape",
+    destination: "Rocky Mountain National Park",
+    region: "Colorado",
+    regionKey: "mountain",
+    emoji: "🫎",
+    description: "Alpine lakes, mountain wildlife, scenic roads, and high-elevation overlooks make this a classic Rockies adventure.",
+    image: "/images/banner.png",
+    estimatedCost: 150,
+    estimatedDriveTime: "Varies by starting point",
+    estimatedDistance: "Regional road trip",
+    tripLength: "Full Day",
+    difficulty: "Easy to Moderate",
+    petFriendly: false,
+    highlights: ["Trail Ridge Road", "Bear Lake", "Moraine Park", "Elk viewing", "Alpine overlooks", "Estes Park"],
+    packingList: ["Layers", "Water", "Sun protection", "Walking shoes", "Binoculars", "Snacks"],
+    safetyNotes: ["Altitude affects some travelers.", "Weather changes quickly above treeline.", "Timed entry may be required."],
+  },
+  {
+    title: "Yellowstone Geysers and Wildlife",
+    destination: "Yellowstone National Park",
+    region: "Wyoming",
+    regionKey: "mountain",
+    emoji: "♨️",
+    description: "Geysers, bison, waterfalls, colorful thermal basins, and sweeping valleys on an unforgettable national-park road trip.",
+    image: "/images/banner1.png",
+    estimatedCost: 240,
+    estimatedDriveTime: "Multi-day drive for many travelers",
+    estimatedDistance: "Regional road trip",
+    tripLength: "3 Days",
+    difficulty: "Easy to Moderate",
+    petFriendly: false,
+    highlights: ["Old Faithful", "Grand Prismatic Spring", "Lamar Valley", "Grand Canyon of Yellowstone", "Bison viewing", "Scenic loops"],
+    packingList: ["Layers", "Water", "Binoculars", "Camera", "Walking shoes", "Bear-safe awareness"],
+    safetyNotes: ["Never approach wildlife.", "Stay on boardwalks in thermal areas.", "Allow extra driving time for wildlife jams."],
+  },
+  {
+    title: "Door County Lakeshore Escape",
+    destination: "Door County",
+    region: "Wisconsin",
+    regionKey: "midwest",
+    emoji: "⛵",
+    description: "Lake Michigan shoreline, charming towns, lighthouses, local food, and easy scenic drives through Wisconsin’s peninsula.",
+    image: "/images/banner.png",
+    estimatedCost: 140,
+    estimatedDriveTime: "Varies by starting point",
+    estimatedDistance: "Regional road trip",
+    tripLength: "Weekend",
+    difficulty: "Easy",
+    petFriendly: true,
+    highlights: ["Peninsula State Park", "Fish Creek", "Lighthouses", "Lake views", "Cherry country", "Local supper clubs"],
+    packingList: ["Layers", "Walking shoes", "Water", "Camera", "Light jacket", "Dog supplies if needed"],
+    safetyNotes: ["Summer weekends can be busy.", "Check ferry schedules if island hopping.", "Lake weather can change quickly."],
+  },
+  {
+    title: "Hocking Hills Waterfall Day",
+    destination: "Hocking Hills State Park",
+    region: "Ohio",
+    regionKey: "midwest",
+    emoji: "🥾",
+    description: "Rock shelters, forest trails, waterfalls, and scenic backroads make this one of the Midwest’s best quick escapes.",
+    image: "/images/banner1.png",
+    estimatedCost: 80,
+    estimatedDriveTime: "Varies by starting point",
+    estimatedDistance: "Regional day trip",
+    tripLength: "Full Day",
+    difficulty: "Moderate",
+    petFriendly: true,
+    highlights: ["Old Man’s Cave", "Ash Cave", "Cedar Falls", "Forest drives", "Rock formations", "Picnic stops"],
+    packingList: ["Water", "Walking shoes", "Layers", "Snacks", "Camera", "Dog leash if needed"],
+    safetyNotes: ["Trails can be slick after rain.", "Stay on marked paths.", "Parking fills on peak weekends."],
+  },
+  {
+    title: "Smoky Mountains Scenic Escape",
+    destination: "Great Smoky Mountains National Park",
+    region: "Tennessee / North Carolina",
+    regionKey: "southeast",
+    emoji: "🌫️",
+    description: "Mountain overlooks, waterfalls, wildlife, historic valleys, and classic Appalachian scenery in America’s most visited national park.",
+    image: "/images/banner.png",
+    estimatedCost: 135,
+    estimatedDriveTime: "Varies by starting point",
+    estimatedDistance: "Regional road trip",
+    tripLength: "Weekend",
+    difficulty: "Easy to Moderate",
+    petFriendly: false,
+    highlights: ["Cades Cove", "Newfound Gap", "Waterfall walks", "Mountain overlooks", "Wildlife viewing", "Gatlinburg food stops"],
+    packingList: ["Rain jacket", "Layers", "Water", "Walking shoes", "Binoculars", "Snacks"],
+    safetyNotes: ["Expect traffic during peak seasons.", "Never feed or approach wildlife.", "Fog can reduce visibility quickly."],
+  },
+  {
+    title: "Blue Ridge Parkway Cruise",
+    destination: "Blue Ridge Parkway",
+    region: "North Carolina",
+    regionKey: "southeast",
+    emoji: "🚙",
+    description: "A relaxed mountain drive packed with overlooks, waterfalls, picnic spots, small towns, and Appalachian scenery.",
+    image: "/images/banner1.png",
+    estimatedCost: 105,
+    estimatedDriveTime: "Flexible scenic drive",
+    estimatedDistance: "Choose your route length",
+    tripLength: "Full Day",
+    difficulty: "Easy",
+    petFriendly: true,
+    highlights: ["Scenic overlooks", "Waterfalls", "Mountain towns", "Picnic areas", "Short hikes", "Sunset views"],
+    packingList: ["Water", "Layers", "Camera", "Snacks", "Walking shoes", "Dog supplies if needed"],
+    safetyNotes: ["Check seasonal road closures.", "Fuel options are limited directly on the parkway.", "Watch for cyclists and wildlife."],
+  },
+  {
+    title: "Texas Hill Country Backroads",
+    destination: "Texas Hill Country",
+    region: "Texas",
+    regionKey: "south",
+    emoji: "🌻",
+    description: "Rolling backroads, swimming holes, barbecue, wineries, historic towns, and wide-open scenery in central Texas.",
+    image: "/images/banner.png",
+    estimatedCost: 155,
+    estimatedDriveTime: "Flexible regional drive",
+    estimatedDistance: "Regional road trip",
+    tripLength: "Weekend",
+    difficulty: "Easy",
+    petFriendly: true,
+    highlights: ["Fredericksburg", "Enchanted Rock area", "BBQ stops", "Scenic ranch roads", "Swimming holes", "Small-town squares"],
+    packingList: ["Water", "Sun protection", "Comfortable shoes", "Cooler", "Camera", "Dog water if needed"],
+    safetyNotes: ["Summer heat can be dangerous.", "Watch for deer on rural roads.", "Check swimming-hole conditions before visiting."],
+  },
+  {
+    title: "Ozark Waterfalls and Mountain Roads",
+    destination: "Ozark National Forest",
+    region: "Arkansas",
+    regionKey: "south",
+    emoji: "🍂",
+    description: "Curvy mountain roads, waterfalls, swimming holes, forest overlooks, and small-town stops through the Arkansas Ozarks.",
+    image: "/images/banner1.png",
+    estimatedCost: 110,
+    estimatedDriveTime: "Flexible regional drive",
+    estimatedDistance: "Regional road trip",
+    tripLength: "Weekend",
+    difficulty: "Easy to Moderate",
+    petFriendly: true,
+    highlights: ["Scenic Highway 7", "Waterfall stops", "Buffalo River area", "Forest overlooks", "Mountain towns", "Picnic pullouts"],
+    packingList: ["Water", "Walking shoes", "Layers", "Snacks", "Offline maps", "Dog supplies if needed"],
+    safetyNotes: ["Cell service can be spotty.", "Mountain roads can be winding.", "Check water levels and weather before creek crossings."],
+  },
+  {
+    title: "Acadia Sunrise and Coast Day",
+    destination: "Acadia National Park",
+    region: "Maine",
+    regionKey: "northeast",
+    emoji: "🌅",
+    description: "Rocky Atlantic coastline, mountain viewpoints, carriage roads, lobster stops, and one of the East Coast’s best sunrises.",
+    image: "/images/banner.png",
+    estimatedCost: 145,
+    estimatedDriveTime: "Varies by starting point",
+    estimatedDistance: "Regional road trip",
+    tripLength: "Full Day",
+    difficulty: "Easy to Moderate",
+    petFriendly: true,
+    highlights: ["Cadillac Mountain", "Park Loop Road", "Jordan Pond", "Thunder Hole", "Bar Harbor", "Ocean overlooks"],
+    packingList: ["Layers", "Water", "Walking shoes", "Camera", "Rain shell", "Snacks"],
+    safetyNotes: ["Cadillac Mountain reservations may be required.", "Coastal rocks can be slippery.", "Arrive early during peak season."],
+  },
+  {
+    title: "Hudson Valley Scenic Weekend",
+    destination: "Hudson Valley",
+    region: "New York",
+    regionKey: "northeast",
+    emoji: "🍎",
+    description: "River views, mountain overlooks, historic towns, farm markets, and excellent food just beyond the city corridor.",
+    image: "/images/banner1.png",
+    estimatedCost: 170,
+    estimatedDriveTime: "Flexible regional drive",
+    estimatedDistance: "Regional road trip",
+    tripLength: "Weekend",
+    difficulty: "Easy",
+    petFriendly: true,
+    highlights: ["Hudson River views", "Beacon", "Historic estates", "Farm markets", "Mountain overlooks", "Local restaurants"],
+    packingList: ["Layers", "Walking shoes", "Water", "Camera", "Reusable tote", "Dog supplies if needed"],
+    safetyNotes: ["Weekend traffic can be heavy.", "Check attraction reservations.", "Fall foliage season books quickly."],
   },
 ];
 
+function shuffle<T>(items: T[]) {
+  return [...items].sort(() => Math.random() - 0.5);
+}
+
+function regionFromCoordinates(latitude: number, longitude: number): RegionKey {
+  if (longitude < -116 && latitude >= 42) return "pacific-northwest";
+  if (longitude < -114) return "west";
+  if (longitude < -102 && latitude < 38) return "southwest";
+  if (longitude < -102) return "mountain";
+  if (longitude < -86 && latitude >= 36) return "midwest";
+  if (longitude < -86) return "south";
+  if (latitude < 37) return "southeast";
+  return "northeast";
+}
+
+function regionFromTimezone(): RegionKey {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  if (zone.includes("Los_Angeles")) return "pacific-northwest";
+  if (zone.includes("Denver") || zone.includes("Boise")) return "mountain";
+  if (zone.includes("Phoenix")) return "southwest";
+  if (zone.includes("Chicago")) return "midwest";
+  if (zone.includes("New_York")) return "northeast";
+  return "south";
+}
+
+function chooseFeaturedTrip(regionKey: RegionKey) {
+  const regional = FEATURED_TRIPS.filter((trip) => trip.regionKey === regionKey);
+  const discovery = FEATURED_TRIPS.filter((trip) => trip.regionKey !== regionKey);
+  const useRegional = regional.length > 0 && Math.random() < 0.7;
+  return shuffle(useRegional ? regional : discovery)[0] || FEATURED_TRIPS[0];
+}
+
+function chooseRelatedTrips(featured: RegionalFeaturedTrip) {
+  const regional = shuffle(
+    FEATURED_TRIPS.filter(
+      (trip) => trip.regionKey === featured.regionKey && trip.title !== featured.title
+    )
+  );
+  const discovery = shuffle(
+    FEATURED_TRIPS.filter(
+      (trip) => trip.regionKey !== featured.regionKey && trip.title !== featured.title
+    )
+  );
+  return [...regional.slice(0, 2), ...discovery].slice(0, 3);
+}
+
 export default function FeaturedPage() {
+  const [featuredTrip, setFeaturedTrip] = useState<RegionalFeaturedTrip>(FEATURED_TRIPS[0]);
+  const [relatedTrips, setRelatedTrips] = useState<RegionalFeaturedTrip[]>(() => chooseRelatedTrips(FEATURED_TRIPS[0]));
+  const [featuredRegion, setFeaturedRegion] = useState<RegionKey>("pacific-northwest");
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const applyRegion = (regionKey: RegionKey) => {
+      if (cancelled) return;
+      const nextFeatured = chooseFeaturedTrip(regionKey);
+      setFeaturedRegion(regionKey);
+      setFeaturedTrip(nextFeatured);
+      setRelatedTrips(chooseRelatedTrips(nextFeatured));
+    };
+
+    const fallbackRegion = regionFromTimezone();
+
+    if (!("geolocation" in navigator)) {
+      applyRegion(fallbackRegion);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if ("permissions" in navigator) {
+      navigator.permissions
+        .query({ name: "geolocation" as PermissionName })
+        .then((permission) => {
+          if (permission.state !== "granted") {
+            applyRegion(fallbackRegion);
+            return;
+          }
+
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              applyRegion(
+                regionFromCoordinates(
+                  position.coords.latitude,
+                  position.coords.longitude
+                )
+              );
+            },
+            () => applyRegion(fallbackRegion),
+            { enableHighAccuracy: false, timeout: 3500, maximumAge: 900000 }
+          );
+        })
+        .catch(() => applyRegion(fallbackRegion));
+    } else {
+      applyRegion(fallbackRegion);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function buildFeaturedRequest() {
     return `
@@ -115,18 +480,7 @@ ${featuredTrip.highlights.map((item) => `- ${item}`).join("\n")}
     `.trim();
   }
 
- async function exploreAdventure() {
-  const supabase = createClient();
-
-const {
-  data: { user },
-} = await supabase.auth.getUser();
-alert(user ? "SIGNED IN" : "GUEST");
-
-if (!user) {
-  window.location.href = "/login?mode=signup&redirect=/featured";
-  return;
-}
+  function exploreAdventure() {
     localStorage.setItem(
       "trippindays-request",
       buildFeaturedRequest()
@@ -308,6 +662,9 @@ Include driving estimates, parking, fees, food, scenic stops, total cost, return
             <div className="inline-flex rounded-full border border-amber-300/30 bg-amber-400/10 px-4 py-2 text-sm font-black text-amber-200">
               ⭐ Featured Adventure
             </div>
+            <div className="ml-3 inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-bold text-cyan-200">
+              70% regional • fresh on each visit
+            </div>
 
             <h1 className="mt-6 text-5xl font-black leading-tight sm:text-6xl lg:text-7xl">
               {featuredTrip.title}
@@ -368,11 +725,11 @@ Include driving estimates, parking, fees, food, scenic stops, total cost, return
         <div className="grid gap-6 lg:grid-cols-[1.25fr_.75fr]">
           <section className="rounded-[2rem] border border-white/10 bg-[#10263f] p-7 shadow-2xl">
             <p className="text-sm font-black uppercase tracking-[0.24em] text-cyan-300">
-              Why we picked it
+              Why we picked it • {featuredRegion.replaceAll("-", " ")}
             </p>
 
             <h2 className="mt-3 text-3xl font-black">
-              An unforgettable Washington day trip
+              A fresh adventure picked for your region
             </h2>
 
             <div className="mt-7 grid gap-4 sm:grid-cols-2">
@@ -512,7 +869,7 @@ Include driving estimates, parking, fees, food, scenic stops, total cost, return
                   openRelatedTrip(
                     trip.title,
                     trip.region,
-                    trip.cost
+                    trip.estimatedCost
                   )
                 }
                 className="rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:-translate-y-1 hover:bg-white/10"

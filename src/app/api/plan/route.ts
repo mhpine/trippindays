@@ -13,6 +13,14 @@ type AdventureOption = {
   reason: string;
 };
 
+type DetourStop = {
+  name: string;
+  area: string;
+  detourTime: string;
+  detourMiles: string;
+  reason: string;
+};
+
 type GeminiTrip = {
   title: string;
   selectedDestination: string;
@@ -27,6 +35,7 @@ type GeminiTrip = {
     artist: string;
     reason: string;
   }[];
+  detourStops?: DetourStop[];
   plan: string;
   budgetBreakdown?: {
   fuel: number;
@@ -574,7 +583,31 @@ Never invent a trail or attraction.
 
 When a hiking trail is included, recommend checking current trail
 conditions and use AllTrails for detailed trail maps and navigation.
-2. RESTAURANTS
+
+2. DETOUR-WORTHY STOPS FOR LONGER ROAD TRIPS
+
+For a road trip that is approximately 100+ total driving miles OR has roughly 2+ hours of meaningful highway/road travel, include a clearly labeled section in this exact format:
+
+DETOUR-WORTHY STOPS:
+- Real stop name | City / area | +estimated detour time | +estimated detour miles | Why: one short reason it is worth the detour
+
+Include 3 to 5 stops maximum.
+- Search the FULL route corridor, not only the final destination area. When practical, spread the choices across the beginning, middle, and later portions of the drive.
+- Scale the acceptable off-route distance to the length of the trip:
+  * About 2 to 3 hours of driving: prefer stops within roughly 15 miles off route.
+  * About 3 to 5 hours of driving: allow up to roughly 25 miles off route.
+  * About 5 to 8 hours of driving: allow up to roughly 40 miles off route.
+  * Epic or multi-day road trips: allow up to roughly 50 miles off route when the stop is genuinely exceptional.
+- Prefer closer, easier detours first. Use the upper mileage allowance only for standout stops that justify the extra drive.
+- Favor scenic overlooks, waterfalls, unusual roadside attractions, historic sites, state or national parks, famous local food stops, quirky small towns, viewpoints, and short hikes.
+- Keep the diversion practical for the traveler's available time and budget.
+- Do not include a detour that would break the final return-home deadline or daily driving limit.
+- Use real places only when reasonably confident they exist. Never invent an attraction or business.
+- Detour time and mileage are estimates only; do not imply live routing or traffic data.
+- If the trip is shorter than about 100 total miles and under about 2 hours of meaningful road travel, OMIT this section entirely.
+- Do not repeat these detour stops elsewhere unless they are actually scheduled into the itinerary.
+
+3. RESTAURANTS
 
 Include a clearly labeled section:
 
@@ -591,7 +624,7 @@ RESTAURANTS
 - If you cannot confidently identify a specific restaurant, provide a
   practical Maps-search recommendation instead of inventing one.
 
-3. GAS / FUEL
+4. GAS / FUEL
 
 Include a clearly labeled section:
 
@@ -606,7 +639,7 @@ GAS / FUEL
 - If a specific station cannot be confidently identified, name the town
   or highway area where the traveler should refuel.
 
-4. ROAD CONDITIONS
+5. ROAD CONDITIONS
 
 Include a clearly labeled section:
 
@@ -622,7 +655,7 @@ ROAD CONDITIONS
 
 "Live road conditions and closures must be verified before departure."
 
-5. LIVE WEATHER
+6. LIVE WEATHER
 
 Include the following exact placeholder on its own line:
 
@@ -633,7 +666,7 @@ Do NOT invent current weather in the itinerary.
 TrippinDays will replace this placeholder with verified live weather
 after the AI trip is generated.
 
-6. NEAREST HOSPITAL
+7. NEAREST HOSPITAL
 
 Include a clearly labeled section:
 
@@ -650,7 +683,7 @@ NEAREST HOSPITAL
   should locate the nearest emergency facility in Maps before departure
   rather than inventing one.
 
-7. OVERNIGHT LODGING
+8. OVERNIGHT LODGING
 
 If the itinerary spans more than one calendar day OR requires the traveler to sleep away from the original starting location, lodging is MANDATORY for every night away from home.
 
@@ -707,7 +740,7 @@ Current lodging availability and reservation details must be verified before boo
 
 Do NOT add an overnight lodging section for the final day if the traveler returns to the original starting location that day.
 
-8. CHECK BEFORE LEAVING
+9. CHECK BEFORE LEAVING
 
 Every itinerary MUST END with a clearly labeled section:
 
@@ -823,6 +856,15 @@ Use exactly this structure:
     "reason": "One short sentence explaining why this song fits the trip"
   }
 ],
+"detourStops": [
+  {
+    "name": "Real stop name",
+    "area": "City / area",
+    "detourTime": "+12 min",
+    "detourMiles": "+7 mi",
+    "reason": "One short reason this stop is worth the detour"
+  }
+],
 "roundTripMiles": 123,
   "plan": "A detailed chronological itinerary containing the required TrippinDays sections, including [[LIVE_WEATHER]] exactly once."
 }
@@ -848,6 +890,8 @@ Important:
 - The user's requested experiences remain the main focus.
 - Restaurants, Gas / Fuel, Road Conditions, Live Weather,
   Nearest Hospital, and Check Before Leaving are mandatory.
+- For longer road trips (about 100+ total miles or 2+ hours of meaningful road travel), DETOUR-WORTHY STOPS is also required.
+- For those longer road trips, detourStops must contain 3 to 5 real route-aware stops using the exact structured fields shown above. For shorter trips, return detourStops as an empty array.
 - Include [[LIVE_WEATHER]] exactly once in plan.
 - musicSuggestions must contain exactly 3 real, widely known songs with real artist names that fit the mood, destination, or style of the trip. Do not invent songs or artists.
         `;
@@ -995,6 +1039,61 @@ Return ONLY valid JSON in the exact structure already specified.`;
       throw new Error(
         "Gemini did not return destination choices."
       );
+    }
+
+    // Ensure long road trips always have structured detour data for the Trip page.
+    if (
+      typeof trip.roundTripMiles === "number" &&
+      trip.roundTripMiles >= 100 &&
+      (!Array.isArray(trip.detourStops) || trip.detourStops.length === 0)
+    ) {
+      try {
+        const detourResponse = await openai.responses.create({
+          model: "gpt-5.6-luna",
+          reasoning: { effort: "none" },
+          text: { verbosity: "low" },
+          input: `Return ONLY valid JSON with this shape:
+{
+  "detourStops": [
+    {
+      "name": "Real stop name",
+      "area": "City / area",
+      "detourTime": "+12 min",
+      "detourMiles": "+7 mi",
+      "reason": "Why it is worth the detour"
+    }
+  ]
+}
+
+Choose 3 to 5 real detour-worthy stops distributed along the full road-trip route, not clustered only near the destination. Favor geographic spread across the early, middle, and later portions of the route when practical. Scale acceptable off-route distance with trip length: roughly 15 miles for 2-3 hour drives, 25 miles for 3-5 hour drives, 40 miles for 5-8 hour drives, and up to 50 miles for Epic or multi-day road trips when a stop is genuinely exceptional. Prefer closer detours first and use the upper range only for standout places. Favor scenic overlooks, waterfalls, unusual roadside attractions, historic sites, state/national parks, notable local food stops, quirky small towns, viewpoints, and short hikes. Never invent a place. Keep detours practical and do not break the itinerary's driving limits or return-home deadline. Detour time and mileage are estimates.
+
+Starting request:
+${tripRequest}
+
+Selected destination: ${trip.selectedDestination}
+Estimated round-trip miles: ${trip.roundTripMiles}
+
+Planned itinerary:
+${trip.plan}`
+        });
+
+        if (detourResponse.output_text) {
+          const detourFirstBrace = detourResponse.output_text.indexOf("{");
+          const detourLastBrace = detourResponse.output_text.lastIndexOf("}");
+          if (detourFirstBrace !== -1 && detourLastBrace !== -1) {
+            const detourJson = detourResponse.output_text
+              .slice(detourFirstBrace, detourLastBrace + 1)
+              .replace(/,\s*}/g, "}")
+              .replace(/,\s*]/g, "]");
+            const parsedDetours = JSON.parse(detourJson) as { detourStops?: DetourStop[] };
+            if (Array.isArray(parsedDetours.detourStops)) {
+              trip.detourStops = parsedDetours.detourStops.slice(0, 5);
+            }
+          }
+        }
+      } catch (detourError) {
+        console.error("Detour stop fallback failed:", detourError);
+      }
     }
 
     const deduplicated =
@@ -1202,6 +1301,9 @@ budgetBreakdown: trip.budgetBreakdown,
 musicSuggestions: Array.isArray(trip.musicSuggestions)
   ? trip.musicSuggestions
   : [],
+      detourStops: Array.isArray(trip.detourStops)
+        ? trip.detourStops.slice(0, 5)
+        : [],
       plan: finalPlan,
 
       liveChecks,

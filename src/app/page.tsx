@@ -411,6 +411,7 @@ Time Available: ${roadTripDays}
 
 Travelers: ${traveler}
 
+
 Maximum Daily Driving: ${maxDailyDriving}
 
 Route Style: ${routeStyle}
@@ -563,16 +564,10 @@ Do not ask the traveler to choose a destination. Make the decision for them.
       setMessage("Tell me what kind of adventure you're looking for.");
       return;
     }
-
-    const finalTime =
-      timeAvailable === "Custom" ? customTime.trim() : timeAvailable;
-
-    if (!finalTime) {
-      setMessage("Please tell me how much time you have.");
-      return;
-    }
-
+const finalTime =
+  timeAvailable === "Custom" ? customTime : timeAvailable;
     const fullRequest = `
+    
 Starting Location: ${startingLocation}
 
 Budget: $${budget}
@@ -583,21 +578,13 @@ Time Available: ${finalTime}
 
 Travelers: ${traveler}
 
+
 Trip Request:
 ${tripRequest}
     `.trim();
 
-    try {
-      localStorage.setItem("trippindays-request", fullRequest);
-    } catch (error) {
-      console.warn("Could not cache trip request:", error);
-    }
+  window.location.href = `/trip?request=${encodeURIComponent(fullRequest)}`;
 
-    setMessage("✨ Building your TrippinDays adventure...");
-
-    // Normal planner is intentionally separate from Epic Road Trip.
-    const tripUrl = `/trip?request=${encodeURIComponent(fullRequest)}`;
-    window.location.assign(tripUrl);
   }
 
   return (
@@ -747,6 +734,7 @@ ${tripRequest}
                 </select>
               </div>
 
+
               <textarea
                 value={tripRequest}
                 onChange={(event) => setTripRequest(event.target.value)}
@@ -887,27 +875,6 @@ ${tripRequest}
                           </p>
                         </div>
 
-                        <div>
-                          <label className="mb-2 block text-sm font-bold text-cyan-100">
-                            👥 Travelers
-                          </label>
-                          <select
-                            value={traveler}
-                            onChange={(event) => {
-                              setTraveler(event.target.value);
-                              setRoadTripMessage("");
-                            }}
-                            className="w-full rounded-xl border border-white/15 bg-slate-950/60 p-3.5 text-white outline-none focus:border-cyan-400"
-                          >
-                            <option>Just Me</option>
-                            <option>Couple</option>
-                            <option>Family</option>
-                            <option>Friends</option>
-                            <option>Me and My Dog</option>
-                            <option>2 Adults, 1 Dog</option>
-                          </select>
-                        </div>
-
                         <div className="grid gap-3 sm:grid-cols-2">
                           <select
                             value={roadTripDays}
@@ -936,6 +903,28 @@ ${tripRequest}
                             <option>8 Hours</option>
                           </select>
                         </div>
+
+                        <div>
+                          <label className="mb-2 block text-sm font-bold text-cyan-100">
+                            👤 Travelers
+                          </label>
+                          <select
+                            value={traveler}
+                            onChange={(event) => {
+                              setTraveler(event.target.value);
+                              setRoadTripMessage("");
+                            }}
+                            className="w-full rounded-xl border border-white/15 bg-slate-950/60 p-3.5 text-white outline-none focus:border-cyan-400"
+                          >
+                            <option>Just Me</option>
+                            <option>Couple</option>
+                            <option>Family</option>
+                            <option>Friends</option>
+                            <option>Me and My Dog</option>
+                            <option>2 Adults, 1 Dog</option>
+                          </select>
+                        </div>
+
 
                         <select
                           value={routeStyle}
@@ -1024,6 +1013,11 @@ ${tripRequest}
 
   {/* Travel Journal */}
   <div className="rounded-3xl border border-white/15 bg-white/10 p-6 backdrop-blur-md shadow-xl">
+    <img
+      src="/images/beach.png"
+      alt="Travel Journal"
+      className="mb-4 h-64 w-full rounded-2xl bg-black/20 object-cover object-center"
+    />
 
     <h2 className="text-2xl font-black">
       📖 Travel Journal
@@ -1043,6 +1037,11 @@ href={signedIn ? "/journal" : "/login?mode=signup&redirect=/journal"}
 
   {/* Passport */}
   <div className="rounded-3xl border border-white/15 bg-white/10 p-6 backdrop-blur-md shadow-xl">
+    <img
+      src="/images/passport1.png"
+      alt="Adventure Passport"
+      className="mb-4 h-64 w-full rounded-2xl bg-black/20 object-cover object-center"
+    />
 
     <h2 className="text-2xl font-black">
       🛂 Adventure Passport

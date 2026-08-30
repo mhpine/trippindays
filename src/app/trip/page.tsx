@@ -67,6 +67,14 @@ type OvernightStop = {
   checkOut: string;
 };
 
+type DetourStop = {
+  name: string;
+  area: string;
+  detourTime: string;
+  detourMiles: string;
+  reason: string;
+};
+
 
 export default function TripPage() {
   const [request, setRequest] = useState("");
@@ -98,6 +106,7 @@ const [pexelsUrl, setPexelsUrl] = useState("");
   const [adventures, setAdventures] = useState<AdventureOption[]>([]);
   const [liveChecks, setLiveChecks] = useState<LiveChecks | null>(null);
   const [nearbyEvents, setNearbyEvents] = useState<any[]>([]);
+  const [detourStops, setDetourStops] = useState<DetourStop[]>([]);
 const [eventsLoading, setEventsLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -255,6 +264,7 @@ useEffect(() => {
         const savedRequest = savedTrip.trip_request || "";
         setRequest(savedRequest);
         setAiPlan(savedTrip.itinerary || "");
+        setDetourStops(parseDetourStops(savedTrip.itinerary || ""));
         setTripTitle(savedTrip.title || "Your TrippinDays Adventure");
         setDestination(savedTrip.destination || "");
         setImageUrl(savedTrip.image_url || "");
@@ -382,6 +392,11 @@ console.log("BUDGET BREAKDOWN:", data.budgetBreakdown);
       }
 
       setAiPlan(data.plan || "");
+      setDetourStops(
+        Array.isArray(data.detourStops) && data.detourStops.length > 0
+          ? data.detourStops.slice(0, 5)
+          : parseDetourStops(data.plan || "")
+      );
       setTripTitle(data.title || "Your TrippinDays Adventure");
       setDestination(data.destination || "");
       setBudgetBreakdown(data.budgetBreakdown || null);
@@ -624,6 +639,11 @@ console.log("BUDGET BREAKDOWN:", data.budgetBreakdown);
     }
 
     setAiPlan(data.plan || aiPlan);
+    setDetourStops(
+      Array.isArray(data.detourStops) && data.detourStops.length > 0
+        ? data.detourStops.slice(0, 5)
+        : parseDetourStops(data.plan || aiPlan)
+    );
     setTripTitle(data.title || tripTitle);
     setDestination(data.destination || destination);
     setSummary(data.summary || summary);
@@ -1377,7 +1397,7 @@ className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text
   </section>
 )}
 
-{!eventsLoading && nearbyEvents.length > 0 && (
+{!eventsLoading && (nearbyEvents.length > 0 || detourStops.length > 0) && (
   <section className="space-y-6">
 
     {/*  SPORTS */}
@@ -1470,6 +1490,64 @@ className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text
                 )}
               </div>
             ))}
+        </div>
+      </div>
+    )}
+
+    {/* DETOUR-WORTHY STOPS — intentionally directly underneath Concerts Nearby */}
+    {detourStops.length > 0 && (
+      <div
+        id="trip-detour-worthy-stops"
+        className="rounded-3xl border border-white/10 bg-white/5 p-6"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-black text-white">
+              🧭 Detour-Worthy Stops
+            </h2>
+            <p className="mt-2 text-sm text-white/60">
+              Worth getting off the highway for. Detour time and mileage are estimates.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          {detourStops.slice(0, 5).map((stop, index) => (
+            <div
+              key={`${stop.name}-${index}`}
+              className="rounded-2xl border border-white/10 bg-black/20 p-5"
+            >
+              <h3 className="text-lg font-black text-white">{stop.name}</h3>
+              {stop.area && (
+                <p className="mt-1 text-sm font-bold text-cyan-300">📍 {stop.area}</p>
+              )}
+
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
+                {stop.detourTime && (
+                  <span className="rounded-full bg-white/10 px-3 py-1.5 text-white/80">
+                    ⏱️ {stop.detourTime}
+                  </span>
+                )}
+                {stop.detourMiles && (
+                  <span className="rounded-full bg-white/10 px-3 py-1.5 text-white/80">
+                    🛣️ {stop.detourMiles}
+                  </span>
+                )}
+              </div>
+
+              {stop.reason && (
+                <p className="mt-3 text-sm leading-6 text-white/70">{stop.reason}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={() => navigate([stop.name, stop.area].filter(Boolean).join(", "))}
+                className="mt-4 rounded-xl bg-sky-500 px-4 py-2 font-black text-white transition hover:bg-sky-400"
+              >
+                🧭 Navigate Here
+              </button>
+            </div>
+          ))}
         </div>
       </div>
     )}
@@ -2246,6 +2324,44 @@ function formatBookingDate(dateText: string): string {
   }).format(date);
 }
 
+function parseDetourStops(plan: string): DetourStop[] {
+  if (!plan.trim()) return [];
+
+  const lines = plan.split("\n");
+  const headingIndex = lines.findIndex((line) =>
+    /^\s*(?:#{1,6}\s*)?(?:🧭\s*)?detour[- ]worthy stops\s*:?.*$/i.test(line.trim())
+  );
+
+  if (headingIndex === -1) return [];
+
+  const collected: string[] = [];
+  for (let i = headingIndex + 1; i < lines.length; i += 1) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    if (/^(?:#{1,6}\s*)?(?:day\s+\d+|weather|roadtunes|music|budget|cost|check before leaving|tonight in|itinerary)\b/i.test(line)) {
+      break;
+    }
+    collected.push(line);
+  }
+
+  return collected
+    .map((line) => line.replace(/^[-*•]\s*/, "").replace(/^\d+[.)]\s*/, ""))
+    .map((line) => {
+      const parts = line.split("|").map((part) => part.trim());
+      if (parts.length < 3) return null;
+      const [name = "", area = "", detourTime = "", detourMiles = "", ...reasonParts] = parts;
+      return {
+        name: name.replace(/^name:\s*/i, ""),
+        area: area.replace(/^(?:area|location):\s*/i, ""),
+        detourTime: detourTime.replace(/^detour time:\s*/i, ""),
+        detourMiles: detourMiles.replace(/^detour miles:\s*/i, ""),
+        reason: reasonParts.join(" | ").replace(/^(?:why|reason):\s*/i, ""),
+      };
+    })
+    .filter((stop): stop is DetourStop => Boolean(stop?.name))
+    .slice(0, 5);
+}
+
 function parsePlan(plan: string, fallbackDestination: string): Section[] {
   const lines = plan
     .replace(/\r/g, "")
@@ -2314,7 +2430,7 @@ function parsePlan(plan: string, fallbackDestination: string): Section[] {
 function isHeading(line: string) {
   return (
     /^\d{1,2}(:\d{2})?\s*(AM|PM)?\s*[-–—:]/i.test(line) ||
-    /^(morning|afternoon|evening|breakfast|lunch|dinner|departure|arrival|return|stop\s*\d+|day\s*\d+|tonight\s+in|hotel\s*\/?\s*motel|campground\s*\/?\s*rv|cabin\s*\/?\s*alternative|roadtunes|weather|cost|budget|check before leaving)/i.test(
+    /^(morning|afternoon|evening|breakfast|lunch|dinner|departure|arrival|return|stop\s*\d+|day\s*\d+|tonight\s+in|hotel\s*\/?\s*motel|campground\s*\/?\s*rv|cabin\s*\/?\s*alternative|detour-worthy stops|roadtunes|weather|cost|budget|check before leaving)/i.test(
       line
     ) ||
     (line.length < 70 && /:$/.test(line))
