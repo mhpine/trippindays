@@ -540,7 +540,7 @@ export default function FeaturedPage() {
     return `
 Starting Location: Ask the traveler for their starting location if it is not already known.
 
-Budget: $${featuredTrip.estimatedCost}
+Budget: Calculate a realistic estimated trip cost from the traveler's actual starting location. Do not use a fixed featured-trip budget.
 
 Time Available: ${featuredTrip.tripLength}
 
@@ -557,7 +557,7 @@ Include:
 - scenic stops
 - easy walking options
 - food recommendations
-- total estimated cost
+- total estimated cost based on the traveler's actual starting location, including fuel/transportation, lodging if needed, food, parking, entrance fees, and activities
 - return-home time
 - packing suggestions
 - safety notes
@@ -683,20 +683,19 @@ ${featuredTrip.highlights.map((item) => `- ${item}`).join("\n")}
 
   function openRelatedTrip(
     title: string,
-    region: string,
-    cost: number
+    region: string
   ) {
     const request = `
 Starting Location: Ask the traveler for their starting location.
 
-Budget: $${cost}
+Budget: Calculate a realistic estimated trip cost from the traveler's actual starting location. Do not use a fixed featured-trip budget.
 
 Time Available: Full Day
 
 Trip Request:
 Create a complete itinerary specifically for ${title}, located in ${region}.
 
-Include driving estimates, parking, fees, food, scenic stops, total cost, return time, packing suggestions, and safety notes.
+Include driving estimates, parking, fees, food, scenic stops, a realistic total cost based on the traveler's actual starting location, return time, packing suggestions, and safety notes.
     `.trim();
 
     localStorage.setItem("trippindays-request", request);
@@ -767,7 +766,7 @@ Include driving estimates, parking, fees, food, scenic stops, total cost, return
 
             <div className="mt-8 flex flex-wrap gap-3">
               <span className="rounded-full bg-white/10 px-4 py-2 font-bold">
-                💰 About ${featuredTrip.estimatedCost}
+                💰 Cost calculated from your starting point
               </span>
               <span className="rounded-full bg-white/10 px-4 py-2 font-bold">
                 🚗 {featuredTrip.estimatedDriveTime}
@@ -836,7 +835,7 @@ Include driving estimates, parking, fees, food, scenic stops, total cost, return
 
             <div className="mt-6 space-y-5">
               {[
-                ["Estimated Cost", `$${featuredTrip.estimatedCost}`],
+                ["Estimated Cost", "Calculated from your starting point"],
                 ["Drive Time", featuredTrip.estimatedDriveTime],
                 ["Distance", featuredTrip.estimatedDistance],
                 ["Trip Length", featuredTrip.tripLength],
@@ -955,8 +954,7 @@ Include driving estimates, parking, fees, food, scenic stops, total cost, return
                 onClick={() =>
                   openRelatedTrip(
                     trip.title,
-                    trip.region,
-                    trip.estimatedCost
+                    trip.region
                   )
                 }
                 className="rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:-translate-y-1 hover:bg-white/10"

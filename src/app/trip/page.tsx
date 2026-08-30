@@ -1704,6 +1704,18 @@ className="rounded-2xl bg-cyan-500 px-6 py-4 font-black flex flex-col items-cent
   </div>
 )}
             </section>
+
+            <section
+              aria-label="Travel information disclaimer"
+              className="mt-6 rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm leading-6 text-white/55"
+            >
+              <span className="font-bold text-white/70">Travel Information Disclaimer:</span>{" "}
+              TrippinDays provides AI-generated travel suggestions and estimated costs,
+              distances, drive times, and other trip information for planning purposes
+              only. Prices, availability, weather, road conditions, hours, fees, and
+              travel requirements can change. Always verify important information with
+              the appropriate provider or official source before traveling.
+            </section>
           </>
         )}
       </div>

@@ -352,18 +352,26 @@ ROUND-TRIP PHASE STRUCTURE:
 - Once the return phase starts, each major driving segment must make geographic progress toward home.
 - Do not overshoot the original starting location and backtrack.
 
-EPIC FEASIBILITY MATH:
+EPIC FEASIBILITY MATH — AUTHORITATIVE:
 - Maximum Daily Driving is ${maximumDailyDrivingHours} hour${maximumDailyDrivingHours === 1 ? "" : "s"} of ACTUAL driving time per day for this request.
 - Meals, fuel, sightseeing, attractions, hikes, and sleep do NOT count against the driving-hour ceiling.
-- Estimate ONE-WAY driving time between the original starting location and requested destination.
+- Estimate the most direct practical ONE-WAY driving time between the exact original Starting Location and the requested destination.
+- Do NOT use round-trip hours as if they must fit into one day.
 - Required outbound driving days = CEILING(one-way driving hours / ${maximumDailyDrivingHours}).
-- Required return driving days = the same calculation for the logical return route.
+- Required return driving days = CEILING(return-route driving hours / ${maximumDailyDrivingHours}).
 - Minimum pure travel days = outbound driving days + return driving days.
-- Any remaining calendar days may be used for destination time and activities.
-- Do NOT call a trip impractical merely because the destination cannot be reached in one day.
-- Example: about 12 hours one way with a 6-hour daily limit requires 2 outbound days + 2 return days. A 5-day trip is practical and leaves 1 day for the destination.
-- Only call the trip impractical when the outbound AND return driving truly cannot fit inside ${requestedCalendarDays} calendar days while respecting the ${maximumDailyDrivingHours}-hour daily driving ceiling and the final-day return-home deadline.
-- If impractical, do not extend the trip. State the constraint clearly.
+- The trip is mathematically feasible when minimum pure travel days is LESS THAN OR EQUAL TO ${requestedCalendarDays}.
+- Any calendar days beyond the minimum pure travel days are destination/adventure days.
+- If the one-way drive is less than or equal to ${maximumDailyDrivingHours} hours, DRIVE DIRECTLY TO THE REQUESTED DESTINATION ON DAY 1. Do NOT invent an intermediate overnight stop.
+- If the return drive is less than or equal to ${maximumDailyDrivingHours} hours, DRIVE DIRECTLY HOME ON THE FINAL DAY. Do NOT invent an intermediate return overnight stop.
+- Example: 7.5 hours one way with an 8-hour daily limit = 1 outbound day + 1 return day. A 5-day trip is feasible and leaves the middle days for the destination.
+- Example: 12 hours one way with a 6-hour daily limit = 2 outbound days + 2 return days. A 5-day trip is feasible and leaves 1 calendar day for destination-focused time.
+- Do NOT call a trip impractical merely because it is a long drive.
+- Do NOT call it impractical merely because meals, fuel, or rest stops make the elapsed clock time longer than the driving time. Schedule an earlier departure instead.
+- Only call the trip impractical when CEILING(outbound one-way driving hours / ${maximumDailyDrivingHours}) + CEILING(return driving hours / ${maximumDailyDrivingHours}) is GREATER THAN ${requestedCalendarDays}.
+- When the driving-time estimate is close to a daily threshold, do not reject the trip solely because of uncertain estimated minutes. Build the itinerary conservatively and tell the traveler to verify live routing before departure.
+- If live routing data was not supplied, driving hours are estimates. Never present an AI driving-time estimate as verified live navigation data.
+- If mathematically impractical, do not extend the trip. State the constraint clearly.
 `
         : "";
 
@@ -445,7 +453,8 @@ HARD DRIVING LIMIT:
 - If the traveler selected a lower Maximum Daily Driving limit, that lower limit is the hard daily ceiling.
 - Driving time means time behind the wheel only.
 - Meals, fuel stops, sightseeing, attractions, hikes, and rest stops are additional time.
-- Choose a logical overnight stop before the daily driving limit is exceeded.
+- Choose a logical overnight stop before the daily driving limit is exceeded ONLY when the remaining drive cannot fit inside that day's selected Maximum Daily Driving limit.
+- If the requested destination can be reached within the selected Maximum Daily Driving limit, go directly to the destination that day and make the destination the overnight location. Do NOT add an unnecessary intermediate overnight.
 - Apply the same driving limit to BOTH outbound and return-trip days.
 - The selected number of calendar days covers the ENTIRE round trip: outbound travel, destination time, and return travel.
 - Do NOT assume a trip is impractical because the destination requires more than one driving day each way.
@@ -492,6 +501,7 @@ MANDATORY RETURN-TRIP STRUCTURE:
 - Every return day ending away from home must contain a TONIGHT IN [CITY / AREA] lodging section.
 - The original Starting Location is the HARD FINAL ENDPOINT of the return route.
 - Before adding any return-trip overnight stop, estimate whether the original Starting Location can be reached within the traveler's selected Maximum Daily Driving limit. If it can, continue directly home and DO NOT add another overnight stop.
+- On the FINAL DAY, if the estimated actual driving time home is within the selected Maximum Daily Driving limit, schedule an early enough departure to arrive home by 5:00 PM rather than declaring the trip infeasible.
 - Never choose an overnight city, attraction, restaurant, fuel stop, or scenic stop that requires driving past the original Starting Location and then backtracking to reach home.
 - On the return trip, each major route segment must make reasonable geographic progress toward the original Starting Location. Do not knowingly send the traveler farther away from home merely to create another itinerary day or lodging stop.
 - Return-trip overnight cities must be on or reasonably near a logical route toward the original Starting Location.
@@ -520,7 +530,8 @@ ROUND-TRIP TIMEFRAME — HARD RULE:
 - NEVER add an extra travel day or overnight stay merely because the planned destination is too far away.
 - NEVER finish the itinerary at the destination, hotel, attraction, overnight city, or another nearby city.
 - NEVER substitute a nearby major city for the traveler's original Starting Location.
-- If necessary, shorten activities, remove detours, leave earlier, choose closer overnight stops, or choose a closer destination so the traveler can return home by 5:00 PM on the final day.
+- If necessary, shorten activities, remove detours, leave earlier, or choose closer overnight stops so the traveler can return home by 5:00 PM on the final day.
+- For Epic Road Trip mode, NEVER replace the traveler's specifically requested destination merely to make the schedule easier. First apply the authoritative feasibility math and split the drive across days only when required by the selected Maximum Daily Driving limit.
 - If the specifically requested destination cannot realistically be completed as a round trip within the selected timeframe and driving limits, clearly say that it is not practical within those constraints instead of silently adding days or nights.
 - For N requested nights, use exactly N overnight stays. The following day is the final return-home day and must end at the original Starting Location by 5:00 PM.
 Every TrippinDays itinerary MUST include the user's main request PLUS
@@ -984,7 +995,11 @@ CRITICAL CORRECTION — YOUR PREVIOUS OUTPUT FAILED THE HARD TRIP LENGTH CHECK:
 - Do not remove lodging. Do not add extra lodging.
 - Rebuild the COMPLETE JSON response from scratch so the itinerary satisfies these requirements.
 - Keep the requested destination unless the round trip is mathematically impossible under the daily driving ceiling.
-- Remember: a roughly 12-hour one-way trip with a 6-hour daily driving ceiling takes 2 driving days each way, so a 5-day round trip is practical with 1 destination day.
+- Feasibility formula: CEILING(outbound one-way driving hours / ${maximumDailyDrivingHours}) + CEILING(return driving hours / ${maximumDailyDrivingHours}) <= ${requestedCalendarDays}.
+- If one-way driving time is <= ${maximumDailyDrivingHours} hours, Day 1 goes directly to the requested destination with no unnecessary intermediate overnight.
+- If final-day driving time home is <= ${maximumDailyDrivingHours} hours, the final day goes directly home with an early enough departure to arrive by 5:00 PM.
+- Example: 7.5 hours one way with an 8-hour daily ceiling is 1 driving day each way, so a 5-day round trip is clearly feasible.
+- Remember: a roughly 12-hour one-way trip with a 6-hour daily ceiling takes 2 driving days each way, so a 5-day round trip is practical with 1 destination-focused calendar day.
 
 Return ONLY valid JSON in the exact structure already specified.`;
 
