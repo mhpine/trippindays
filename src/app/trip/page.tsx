@@ -101,6 +101,8 @@ const [pexelsUrl, setPexelsUrl] = useState("");
 const [eventsLoading, setEventsLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showSectionSkip, setShowSectionSkip] = useState(true);
+  const [showSectionBack, setShowSectionBack] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
  const [isRemixing, setIsRemixing] = useState("");
@@ -779,8 +781,99 @@ function openRoadConditions() {
 
   window.open(url, "_blank", "noopener,noreferrer");
 }
+
+useEffect(() => {
+  if (!aiPlan || isLoading || error) return;
+
+  setShowSectionSkip(true);
+  setShowSectionBack(true);
+  const timer = window.setTimeout(() => {
+    setShowSectionSkip(false);
+    setShowSectionBack(false);
+  }, 4500);
+
+  return () => window.clearTimeout(timer);
+}, [aiPlan, isLoading, error]);
+
+function scrollToNextSection() {
+  const sections = Array.from(
+    document.querySelectorAll<HTMLElement>("[data-trip-section]")
+  );
+
+  const nextSection = sections.find(
+    (section) => section.getBoundingClientRect().top > 140
+  );
+
+  if (nextSection) {
+    nextSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    setShowSectionSkip(false);
+    return;
+  }
+
+  window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+  setShowSectionSkip(false);
+}
+
+function scrollToPreviousSection() {
+  const sections = Array.from(
+    document.querySelectorAll<HTMLElement>("[data-trip-section]")
+  );
+
+  const previousSection = [...sections]
+    .reverse()
+    .find((section) => section.getBoundingClientRect().top < -40);
+
+  if (previousSection) {
+    previousSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    setShowSectionBack(false);
+    return;
+  }
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  setShowSectionBack(false);
+}
+
   return (
   <main className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#061426] text-white">
+      <button
+        type="button"
+        onClick={() => window.history.back()}
+        aria-label="Go back"
+        title="Go back"
+        className="fixed left-3 top-1/2 z-[100] flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-slate-950/30 text-2xl font-black text-white/50 shadow-lg backdrop-blur-sm transition hover:bg-slate-950/85 hover:text-white active:scale-95"
+      >
+        ←
+      </button>
+
+      {!isLoading && !error && aiPlan && (
+        <div
+          className="group fixed bottom-6 left-1/2 z-[100] flex -translate-x-1/2 gap-2 px-8 py-3"
+          aria-label="Trip section navigation"
+        >
+          <button
+            type="button"
+            onClick={scrollToPreviousSection}
+            aria-label="Go to previous section"
+            title="Previous section"
+            className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-slate-950/55 text-2xl font-black text-white shadow-lg backdrop-blur-sm transition duration-300 hover:scale-110 hover:bg-slate-950/90 active:scale-95 group-hover:opacity-100 ${
+              showSectionBack ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            onClick={scrollToNextSection}
+            aria-label="Go to next section"
+            title="Next section"
+            className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-slate-950/55 text-2xl font-black text-white shadow-lg backdrop-blur-sm transition duration-300 hover:scale-110 hover:bg-slate-950/90 active:scale-95 group-hover:opacity-100 ${
+              showSectionSkip ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            ↓
+          </button>
+        </div>
+      )}
       <header className="border-b border-white/10 bg-[#061426]/90 px-6 py-5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <a href="/" className="text-2xl font-black">
@@ -808,7 +901,7 @@ function openRoadConditions() {
         {!isLoading && !error && aiPlan && (
           <>
   
-            <section className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-blue-700 via-sky-700 to-slate-950 p-8 shadow-2xl">
+            <section data-trip-section id="trip-overview" className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-blue-700 via-sky-700 to-slate-950 p-8 shadow-2xl">
               <p className="text-sm font-black uppercase tracking-[0.25em] text-sky-200">
                 Your itinerary is ready
               </p>
@@ -848,18 +941,6 @@ function openRoadConditions() {
   
 )}
 
-<button
-  type="button"
-  onClick={() =>
-    document
-      .getElementById("adventure-itinerary")
-      ?.scrollIntoView({ behavior: "smooth" })
-  }
- className="mx-auto mt-3 flex w-fit items-center justify-center gap-2 rounded-2xl border border-sky-300 bg-white/5 px-6 py-3 font-black text-sky-200 transition hover:bg-white/10 hover:text-white"
->
-<span>Skip to Itinerary</span>
-<span className="text-2xl font-black">↓↓</span>
-</button>
               {summary && <p className="mt-5 max-w-3xl text-lg leading-8 text-white/80">{summary}</p>}
               <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <button onClick={() => navigate()} className="rounded-2xl bg-white px-6 py-4 font-black text-slate-950">
@@ -900,7 +981,7 @@ function openRoadConditions() {
               </div>
             </section>
 
-            <section className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <section data-trip-section id="trip-details" className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-5">
               <SummaryCard icon="🏁" label="Starting Point" value={start || "Current location"} />
               <SummaryCard icon="💵" label="Budget" value={budget} />
               <SummaryCard icon="⏱️" label="Time Available" value={time} />
@@ -1404,7 +1485,7 @@ className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text
 />
             </section>
 
-            <section className="mt-10">
+            <section data-trip-section id="trip-itinerary-section" className="mt-10 scroll-mt-6">
               <p className="text-sm font-black uppercase tracking-widest text-sky-300">
                 Your day, stop by stop
               </p>
@@ -1423,7 +1504,7 @@ className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text
             </section>
 
             {adventures.length > 0 && (
-              <section className="mt-10">
+              <section data-trip-section id="trip-other-adventures" className="mt-10 scroll-mt-6">
                 <div className="flex flex-wrap items-end justify-between gap-4">
                   <div>
                     <p className="text-sm font-black uppercase tracking-widest text-sky-300">
@@ -1452,7 +1533,7 @@ className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text
               </section>
             )}
 
-            <section className="mt-10 rounded-3xl border border-white/10 bg-white/5 p-8">
+            <section data-trip-section id="trip-finish" className="mt-10 scroll-mt-6 rounded-3xl border border-white/10 bg-white/5 p-8">
               <p className="text-sm font-black uppercase tracking-widest text-sky-300">
                 Finish your adventure
               </p>
