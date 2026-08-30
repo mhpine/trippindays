@@ -43,7 +43,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "pacific-northwest",
     emoji: "🏔️",
     description: "A mountain escape with waterfalls, alpine viewpoints, scenic walks, picnic stops, and unforgettable views.",
-    image: "/images/banner1.png",
+    image: "/images/rainier.png",
     estimatedCost: 95,
     estimatedDriveTime: "About 2 hours each way",
     estimatedDistance: "About 95 miles each way",
