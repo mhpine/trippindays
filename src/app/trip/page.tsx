@@ -1400,6 +1400,65 @@ className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text
 {!eventsLoading && (nearbyEvents.length > 0 || detourStops.length > 0) && (
   <section className="space-y-6">
 
+    {/* DETOUR-WORTHY STOPS — above Live Sports and Concerts */}
+    {detourStops.length > 0 && (
+      <div
+        id="trip-detour-worthy-stops"
+        className="rounded-3xl border border-white/10 bg-white/5 p-6"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-black text-white">
+              🧭 Detour-Worthy Stops
+            </h2>
+            <p className="mt-2 text-sm text-white/60">
+              Worth getting off the highway for. Detour time and mileage are estimates.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          {detourStops.slice(0, 5).map((stop, index) => (
+            <div
+              key={`${stop.name}-${index}`}
+              className="rounded-2xl border border-white/10 bg-black/20 p-5"
+            >
+              <h3 className="text-lg font-black text-white">{stop.name}</h3>
+              {stop.area && (
+                <p className="mt-1 text-sm font-bold text-cyan-300">📍 {stop.area}</p>
+              )}
+
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
+                {stop.detourTime && (
+                  <span className="rounded-full bg-white/10 px-3 py-1.5 text-white/80">
+                    ⏱️ {stop.detourTime}
+                  </span>
+                )}
+                {stop.detourMiles && (
+                  <span className="rounded-full bg-white/10 px-3 py-1.5 text-white/80">
+                    🛣️ {stop.detourMiles}
+                  </span>
+                )}
+              </div>
+
+              {stop.reason && (
+                <p className="mt-3 text-sm leading-6 text-white/70">{stop.reason}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={() => navigate([stop.name, stop.area].filter(Boolean).join(", "))}
+                className="mt-4 rounded-xl bg-sky-500 px-4 py-2 font-black text-white transition hover:bg-sky-400"
+              >
+                🧭 Navigate Here
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+
     {/*  SPORTS */}
     {nearbyEvents.some((event) => event.type === "sports") && (
       <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
@@ -1494,63 +1553,6 @@ className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text
       </div>
     )}
 
-    {/* DETOUR-WORTHY STOPS — intentionally directly underneath Concerts Nearby */}
-    {detourStops.length > 0 && (
-      <div
-        id="trip-detour-worthy-stops"
-        className="rounded-3xl border border-white/10 bg-white/5 p-6"
-      >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-black text-white">
-              🧭 Detour-Worthy Stops
-            </h2>
-            <p className="mt-2 text-sm text-white/60">
-              Worth getting off the highway for. Detour time and mileage are estimates.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          {detourStops.slice(0, 5).map((stop, index) => (
-            <div
-              key={`${stop.name}-${index}`}
-              className="rounded-2xl border border-white/10 bg-black/20 p-5"
-            >
-              <h3 className="text-lg font-black text-white">{stop.name}</h3>
-              {stop.area && (
-                <p className="mt-1 text-sm font-bold text-cyan-300">📍 {stop.area}</p>
-              )}
-
-              <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
-                {stop.detourTime && (
-                  <span className="rounded-full bg-white/10 px-3 py-1.5 text-white/80">
-                    ⏱️ {stop.detourTime}
-                  </span>
-                )}
-                {stop.detourMiles && (
-                  <span className="rounded-full bg-white/10 px-3 py-1.5 text-white/80">
-                    🛣️ {stop.detourMiles}
-                  </span>
-                )}
-              </div>
-
-              {stop.reason && (
-                <p className="mt-3 text-sm leading-6 text-white/70">{stop.reason}</p>
-              )}
-
-              <button
-                type="button"
-                onClick={() => navigate([stop.name, stop.area].filter(Boolean).join(", "))}
-                className="mt-4 rounded-xl bg-sky-500 px-4 py-2 font-black text-white transition hover:bg-sky-400"
-              >
-                🧭 Navigate Here
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
 
   </section>
 )}
