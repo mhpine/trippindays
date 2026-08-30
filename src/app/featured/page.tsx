@@ -43,7 +43,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "pacific-northwest",
     emoji: "🏔️",
     description: "A mountain escape with waterfalls, alpine viewpoints, scenic walks, picnic stops, and unforgettable views.",
-    image: "/images/rainier.png",
+    image: "/images/Rainier.png",
     estimatedCost: 95,
     estimatedDriveTime: "About 2 hours each way",
     estimatedDistance: "About 95 miles each way",
@@ -61,7 +61,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "pacific-northwest",
     emoji: "🌲",
     description: "Rainforest trails, dramatic Pacific beaches, waterfalls, and moody coastal scenery packed into one memorable getaway.",
-    image: "/images/banner.png",
+    image: "/images/olympic.png",
     estimatedCost: 145,
     estimatedDriveTime: "About 2–3 hours each way",
     estimatedDistance: "About 130 miles each way",
@@ -79,7 +79,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "pacific-northwest",
     emoji: "💦",
     description: "A waterfall-heavy drive through the Columbia Gorge with viewpoints, short walks, historic highway stops, and great food.",
-    image: "/images/banner1.png",
+    image: "/images/olympic.png",
     estimatedCost: 90,
     estimatedDriveTime: "About 2 hours each way",
     estimatedDistance: "About 110 miles each way",
@@ -97,7 +97,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "west",
     emoji: "🌳",
     description: "Cruise beneath giant redwoods, stop at fern-lined trails, and mix forest scenery with the rugged Northern California coast.",
-    image: "/images/banner.png",
+    image: "/images/Redwood National Park.png",
     estimatedCost: 160,
     estimatedDriveTime: "Varies by starting point",
     estimatedDistance: "Regional road trip",
@@ -115,7 +115,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "west",
     emoji: "🏞️",
     description: "Iconic granite cliffs, waterfalls, valley viewpoints, and easy scenic walks through one of America’s classic landscapes.",
-    image: "/images/banner1.png",
+    image: "/images/yosemite.png",
     estimatedCost: 175,
     estimatedDriveTime: "Varies by starting point",
     estimatedDistance: "Regional road trip",
@@ -133,7 +133,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "southwest",
     emoji: "🌄",
     description: "Red-rock viewpoints, scenic drives, short hikes, sunsets, and a lively food scene make this an easy Southwest escape.",
-    image: "/images/banner.png",
+    image: "/images/Sedona.png",
     estimatedCost: 180,
     estimatedDriveTime: "Varies by starting point",
     estimatedDistance: "Regional road trip",
@@ -151,7 +151,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "southwest",
     emoji: "🏜️",
     description: "Towering canyon walls, desert scenery, riverside walks, and unforgettable overlooks in southern Utah.",
-    image: "/images/banner1.png",
+    image: "/images/utah1.png",
     estimatedCost: 190,
     estimatedDriveTime: "Varies by starting point",
     estimatedDistance: "Regional road trip",
@@ -169,7 +169,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "mountain",
     emoji: "🫎",
     description: "Alpine lakes, mountain wildlife, scenic roads, and high-elevation overlooks make this a classic Rockies adventure.",
-    image: "/images/banner.png",
+    image: "/images/Rocky Mountain National Park.png",
     estimatedCost: 150,
     estimatedDriveTime: "Varies by starting point",
     estimatedDistance: "Regional road trip",
@@ -187,7 +187,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "mountain",
     emoji: "♨️",
     description: "Geysers, bison, waterfalls, colorful thermal basins, and sweeping valleys on an unforgettable national-park road trip.",
-    image: "/images/banner1.png",
+    image: "/images/yellowstone.png",
     estimatedCost: 240,
     estimatedDriveTime: "Multi-day drive for many travelers",
     estimatedDistance: "Regional road trip",
@@ -205,7 +205,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "midwest",
     emoji: "⛵",
     description: "Lake Michigan shoreline, charming towns, lighthouses, local food, and easy scenic drives through Wisconsin’s peninsula.",
-    image: "/images/banner.png",
+    image: "/images/Door County.png",
     estimatedCost: 140,
     estimatedDriveTime: "Varies by starting point",
     estimatedDistance: "Regional road trip",
@@ -223,7 +223,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "midwest",
     emoji: "🥾",
     description: "Rock shelters, forest trails, waterfalls, and scenic backroads make this one of the Midwest’s best quick escapes.",
-    image: "/images/banner1.png",
+    image: "/images/Hocking Hills State Park.png",
     estimatedCost: 80,
     estimatedDriveTime: "Varies by starting point",
     estimatedDistance: "Regional day trip",
@@ -241,7 +241,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "southeast",
     emoji: "🌫️",
     description: "Mountain overlooks, waterfalls, wildlife, historic valleys, and classic Appalachian scenery in America’s most visited national park.",
-    image: "/images/banner.png",
+    image: "/images/Great Smoky Mountains National Park.png",
     estimatedCost: 135,
     estimatedDriveTime: "Varies by starting point",
     estimatedDistance: "Regional road trip",
@@ -259,7 +259,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "southeast",
     emoji: "🚙",
     description: "A relaxed mountain drive packed with overlooks, waterfalls, picnic spots, small towns, and Appalachian scenery.",
-    image: "/images/banner1.png",
+    image: "/images/Blue Ridge Parkway.png",
     estimatedCost: 105,
     estimatedDriveTime: "Flexible scenic drive",
     estimatedDistance: "Choose your route length",
@@ -277,7 +277,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "south",
     emoji: "🌻",
     description: "Rolling backroads, swimming holes, barbecue, wineries, historic towns, and wide-open scenery in central Texas.",
-    image: "/images/banner.png",
+    image: "/images/Texas Hill Country.png",
     estimatedCost: 155,
     estimatedDriveTime: "Flexible regional drive",
     estimatedDistance: "Regional road trip",
@@ -295,7 +295,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "south",
     emoji: "🍂",
     description: "Curvy mountain roads, waterfalls, swimming holes, forest overlooks, and small-town stops through the Arkansas Ozarks.",
-    image: "/images/banner1.png",
+    image: "/images/Ozark National Forest.png",
     estimatedCost: 110,
     estimatedDriveTime: "Flexible regional drive",
     estimatedDistance: "Regional road trip",
@@ -313,7 +313,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "northeast",
     emoji: "🌅",
     description: "Rocky Atlantic coastline, mountain viewpoints, carriage roads, lobster stops, and one of the East Coast’s best sunrises.",
-    image: "/images/banner.png",
+    image: "/images/Acadia National Park.png",
     estimatedCost: 145,
     estimatedDriveTime: "Varies by starting point",
     estimatedDistance: "Regional road trip",
@@ -331,7 +331,7 @@ const FEATURED_TRIPS: RegionalFeaturedTrip[] = [
     regionKey: "northeast",
     emoji: "🍎",
     description: "River views, mountain overlooks, historic towns, farm markets, and excellent food just beyond the city corridor.",
-    image: "/images/banner1.png",
+    image: "/images/Hudson Valley.png",
     estimatedCost: 170,
     estimatedDriveTime: "Flexible regional drive",
     estimatedDistance: "Regional road trip",
@@ -361,19 +361,105 @@ function regionFromCoordinates(latitude: number, longitude: number): RegionKey {
 
 function regionFromTimezone(): RegionKey {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
-  if (zone.includes("Los_Angeles")) return "pacific-northwest";
-  if (zone.includes("Denver") || zone.includes("Boise")) return "mountain";
+
+  // Timezone is only a fallback when we do not have a more precise starting
+  // location or granted browser geolocation. Keep each U.S. timezone mapped
+  // to the broad region that best represents most travelers in that zone.
+  if (zone.includes("Los_Angeles")) return "west";
+  if (zone.includes("Boise")) return "pacific-northwest";
+  if (zone.includes("Denver")) return "mountain";
   if (zone.includes("Phoenix")) return "southwest";
   if (zone.includes("Chicago")) return "midwest";
   if (zone.includes("New_York")) return "northeast";
   return "south";
 }
 
+function regionFromLocationText(value: string): RegionKey | null {
+  const text = value.toLowerCase();
+
+  const hasAny = (values: string[]) => values.some((item) => text.includes(item));
+
+  if (hasAny(["washington", ", wa", " wa ", "oregon", ", or", " or ", "idaho", ", id", " id "])) {
+    return "pacific-northwest";
+  }
+
+  if (hasAny(["california", ", ca", " ca ", "nevada", ", nv", " nv "])) {
+    return "west";
+  }
+
+  if (hasAny(["arizona", ", az", " az ", "new mexico", ", nm", " nm ", "utah", ", ut", " ut "])) {
+    return "southwest";
+  }
+
+  if (hasAny(["colorado", ", co", " co ", "wyoming", ", wy", " wy ", "montana", ", mt", " mt "])) {
+    return "mountain";
+  }
+
+  if (
+    hasAny([
+      "wisconsin", ", wi", " wi ", "michigan", ", mi", " mi ", "minnesota", ", mn", " mn ",
+      "illinois", ", il", " il ", "indiana", ", in", " in ", "ohio", ", oh", " oh ",
+      "iowa", ", ia", " ia ", "missouri", ", mo", " mo ", "north dakota", ", nd", " nd ",
+      "south dakota", ", sd", " sd ", "nebraska", ", ne", " ne ", "kansas", ", ks", " ks "
+    ])
+  ) {
+    return "midwest";
+  }
+
+  if (
+    hasAny([
+      "texas", ", tx", " tx ", "oklahoma", ", ok", " ok ", "arkansas", ", ar", " ar ",
+      "louisiana", ", la", " la ", "mississippi", ", ms", " ms "
+    ])
+  ) {
+    return "south";
+  }
+
+  if (
+    hasAny([
+      "tennessee", ", tn", " tn ", "north carolina", ", nc", " nc ", "south carolina", ", sc", " sc ",
+      "georgia", ", ga", " ga ", "florida", ", fl", " fl ", "alabama", ", al", " al ",
+      "kentucky", ", ky", " ky ", "virginia", ", va", " va ", "west virginia", ", wv", " wv "
+    ])
+  ) {
+    return "southeast";
+  }
+
+  if (
+    hasAny([
+      "maine", ", me", " me ", "new hampshire", ", nh", " nh ", "vermont", ", vt", " vt ",
+      "massachusetts", ", ma", " ma ", "rhode island", ", ri", " ri ", "connecticut", ", ct", " ct ",
+      "new york", ", ny", " ny ", "new jersey", ", nj", " nj ", "pennsylvania", ", pa", " pa ",
+      "maryland", ", md", " md ", "delaware", ", de", " de ", "district of columbia", "washington dc"
+    ])
+  ) {
+    return "northeast";
+  }
+
+  return null;
+}
+
+function getStoredStartingRegion(): RegionKey | null {
+  try {
+    const saved = localStorage.getItem("trippindays-request");
+    if (!saved) return null;
+
+    const startingLocationMatch = saved.match(/Starting Location:\s*([^\n]+)/i);
+    if (!startingLocationMatch?.[1]) return null;
+
+    return regionFromLocationText(startingLocationMatch[1].trim());
+  } catch {
+    return null;
+  }
+}
+
 function chooseFeaturedTrip(regionKey: RegionKey) {
   const regional = FEATURED_TRIPS.filter((trip) => trip.regionKey === regionKey);
-  const discovery = FEATURED_TRIPS.filter((trip) => trip.regionKey !== regionKey);
-  const useRegional = regional.length > 0 && Math.random() < 0.7;
-  return shuffle(useRegional ? regional : discovery)[0] || FEATURED_TRIPS[0];
+
+  // The main Featured Adventure should be regional whenever we know the
+  // traveler's region. National discovery belongs in the related-trip area,
+  // not in the primary regional recommendation.
+  return shuffle(regional)[0] || FEATURED_TRIPS[0];
 }
 
 function chooseRelatedTrips(featured: RegionalFeaturedTrip) {
@@ -408,7 +494,8 @@ export default function FeaturedPage() {
       setRelatedTrips(chooseRelatedTrips(nextFeatured));
     };
 
-    const fallbackRegion = regionFromTimezone();
+    const storedRegion = getStoredStartingRegion();
+    const fallbackRegion = storedRegion || regionFromTimezone();
 
     if (!("geolocation" in navigator)) {
       applyRegion(fallbackRegion);
@@ -663,7 +750,7 @@ Include driving estimates, parking, fees, food, scenic stops, total cost, return
               ⭐ Featured Adventure
             </div>
             <div className="ml-3 inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-bold text-cyan-200">
-              70% regional • fresh on each visit
+              Regional to you • fresh on each visit
             </div>
 
             <h1 className="mt-6 text-5xl font-black leading-tight sm:text-6xl lg:text-7xl">
