@@ -958,8 +958,7 @@ Use exactly this structure:
   }
 ],
 "roundTripMiles": 123,
-  "plan": "A detailed chronological itinerary containing the required TrippinDays sections, including [[LIVE_WEATHER]] exactly once."
-}
+ "plan": "A concise chronological itinerary containing every required TrippinDays section, using short bullets and no repeated explanations, including [[LIVE_WEATHER]] exactly once."
 
 Important:
 
@@ -1157,12 +1156,17 @@ Return ONLY valid JSON in the exact structure already specified.`;
       );
 
     const verifiedRoute = shouldVerifyDrivingRoute
-      ? await getGoogleRoundTripRoute(
-          startingLocation,
-          trip.selectedDestination
-        )
-      : null;
-
+  ? await getGoogleRoundTripRoute(
+      startingLocation,
+      trip.selectedDestination
+    )
+  : null;
+console.log("ROUTE CHECK:", {
+  startingLocation,
+  destination: trip.selectedDestination,
+  shouldVerifyDrivingRoute,
+  verifiedRoute,
+});
     if (isEpicRoadTrip && shouldVerifyDrivingRoute && !verifiedRoute) {
       throw new Error(
         "TrippinDays could not verify this road trip with Google Maps. Check that GOOGLE_MAPS_API_KEY is configured and the Routes API is enabled."

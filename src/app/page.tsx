@@ -719,9 +719,20 @@ Do not ask the traveler to choose a destination. Make the decision for them.
 
     runAiPick();
   }
+function useTripCard(trip: TripCard) {
+  if (!startingLocation.trim()) {
+    alert("Please enter your starting location first.");
+    return;
+  }
 
-  function useTripCard(trip: TripCard) {
-  openTripWithRequest(trip.prompt);
+  const viewTripRequest = `
+Starting Location: ${startingLocation}
+
+Trip Request:
+${trip.prompt}
+  `.trim();
+
+  openTripWithRequest(viewTripRequest);
 }
 
   function openTripWithRequest(requestText: string) {
