@@ -78,6 +78,8 @@ export default function TrippinDaysHomeV2() {
   const [signedIn, setSignedIn] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+  const [splashLeaving, setSplashLeaving] = useState(false);
   const [roadTripMode, setRoadTripMode] = useState(false);
   const [roadTripDestination, setRoadTripDestination] = useState("");
   const [roadTripTravelMode, setRoadTripTravelMode] = useState("Let TrippinDays Choose");
@@ -96,67 +98,123 @@ export default function TrippinDaysHomeV2() {
   const [roadTripStartDate, setRoadTripStartDate] = useState("");
 
   const [interests, setInterests] = useState(
-    ""
+    "Nature, Food, Adventure"
   );
 
   const [prompt, setPrompt] = useState("");
 
-  useEffect(() => {
-    const supabase = createClient();
+useEffect(() => {
+  const supabase = createClient();
+  let mounted = true;
 
-    async function loadAccess() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  async function loadPremium(userId: string | null) {
+    if (!mounted) return;
 
-      setSignedIn(!!user);
-
-      if (!user) {
-        setIsPremium(false);
-        return;
-      }
-
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("is_premium")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profileError) {
-        console.error("Could not check Premium access:", profileError);
-        setIsPremium(false);
-        return;
-      }
-
-      setIsPremium(profile?.is_premium === true);
+    if (!userId) {
+      setIsPremium(false);
+      return;
     }
 
-    void loadAccess();
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("is_premium")
+      .eq("id", userId)
+      .maybeSingle();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      void loadAccess();
-    });
+    if (!mounted) return;
 
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-async function handleSignOut() {
-  const supabase = createClient();
+    if (error) {
+      console.error("Could not check Premium access:", error);
+      setIsPremium(false);
+      return;
+    }
 
-  const { error } = await supabase.auth.signOut();
-
-  if (error) {
-    console.error("Could not sign out:", error);
-    return;
+    setIsPremium(profile?.is_premium === true);
   }
 
-  setSignedIn(false);
-  setIsPremium(false);
-  window.location.replace("/");
-}
+  // Read the login that Supabase already saved in this browser.
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
+    const storageKey = `sb-${projectRef}-auth-token`;
+
+    const savedAuth = window.localStorage.getItem(storageKey);
+
+    if (savedAuth) {
+      const savedSession = JSON.parse(savedAuth);
+      const savedUser = savedSession?.user ?? null;
+
+      if (savedUser?.id) {
+        setSignedIn(true);
+        void loadPremium(savedUser.id);
+      } else {
+        setSignedIn(false);
+        setIsPremium(false);
+      }
+    } else {
+      setSignedIn(false);
+      setIsPremium(false);
+    }
+  } catch (error) {
+    console.error("Could not read saved login:", error);
+    setSignedIn(false);
+    setIsPremium(false);
+  }
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((event, session) => {
+    if (!mounted) return;
+
+    if (event === "SIGNED_IN" && session?.user) {
+      setSignedIn(true);
+      void loadPremium(session.user.id);
+    }
+
+    if (event === "SIGNED_OUT") {
+      setSignedIn(false);
+      setIsPremium(false);
+    }
+  });
+
+  return () => {
+    mounted = false;
+    subscription.unsubscribe();
+  };
+}, []);
+
+  useEffect(() => {
+    setShowSplash(true);
+    setSplashLeaving(false);
+
+    const fadeTimer = window.setTimeout(() => {
+      setSplashLeaving(true);
+    }, 1500);
+
+    const hideTimer = window.setTimeout(() => {
+      setShowSplash(false);
+    }, 2200);
+
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(hideTimer);
+    };
+  }, []);
+
+  async function handleSignOut() {
+    const supabase = createClient();
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("Could not sign out:", error);
+      return;
+    }
+
+    setSignedIn(false);
+    setIsPremium(false);
+    window.location.replace("/");
+  }
+
   useEffect(() => {
     // Always start with Current Location. If permission is granted,
     // replace it with a readable city/state and keep the coordinates.
@@ -721,27 +779,25 @@ Do not ask the traveler to choose a destination. Make the decision for them.
   }
 
   function useTripCard(trip: TripCard) {
-  openTripWithRequest(trip.prompt);
-}
+    setPrompt(trip.prompt);
+    scrollToPlanner();
+  }
 
   function openTripWithRequest(requestText: string) {
-  try {
-    localStorage.setItem("trippindays-request", requestText);
-    sessionStorage.setItem("trippindays-request", requestText);
-
-    window.location.assign("/trip");
-    return;
-  } catch (error) {
-    console.warn(
-      "Trip request storage was blocked. Using URL fallback.",
-      error
-    );
-
-    window.location.assign(
-      `/trip?request=${encodeURIComponent(requestText)}`
-    );
+    // Prefer browser storage so the request does not have to live in a long URL.
+    // If mobile privacy/storage settings block localStorage, fall back to the URL.
+    try {
+      localStorage.setItem("trippindays-request", requestText);
+      sessionStorage.setItem("trippindays-request", requestText);
+      window.location.assign("/trip");
+      return;
+    } catch (error) {
+      console.warn("Trip request storage was blocked. Using URL fallback.", error);
+      window.location.assign(
+        `/trip?request=${encodeURIComponent(requestText)}`
+      );
+    }
   }
-}
 
   function planAdventure() {
     if (!startingLocation.trim()) {
@@ -816,6 +872,28 @@ ${combinedTripRequest}
 
   return (
     <main className="min-h-screen bg-[#f5efe4] text-[#092530]">
+      {showSplash && (
+        <div
+          className={`fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-[#062b35] transition-all duration-700 ${
+            splashLeaving ? "scale-110 opacity-0" : "scale-100 opacity-100"
+          }`}
+          aria-label="TrippinDays splash screen"
+        >
+          <div
+            className={`px-6 text-center transition-all duration-700 ${
+              splashLeaving ? "scale-125 opacity-0" : "scale-100 opacity-100"
+            }`}
+          >
+            <div className="text-5xl font-black italic tracking-[-0.04em] text-white sm:text-7xl">
+              TrippinDays
+            </div>
+            <div className="mt-4 text-2xl font-black tracking-[0.12em] text-orange-500 sm:text-4xl">
+              Plan. Pack. Go.
+            </div>
+            <div className="mx-auto mt-6 h-1 w-28 rounded-full bg-orange-500" />
+          </div>
+        </div>
+      )}
       {/* HEADER */}
       <header className="absolute inset-x-0 top-0 z-50 border-b border-white/10 bg-[#062b35]/75 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
@@ -895,23 +973,26 @@ ${combinedTripRequest}
             >
               📲 Get App
             </button>
+<span className="rounded bg-yellow-300 px-2 py-1 text-xs font-black text-black">
+  AUTH: {signedIn ? "TRUE" : "FALSE"}
+</span>
+            {signedIn ? (
+              <button
+                type="button"
+                onClick={() => void handleSignOut()}
+                className="rounded-xl border border-white/70 bg-black/15 px-3 py-2 text-xs font-bold text-white backdrop-blur sm:px-4 sm:text-sm"
+              >
+                Sign Out
+              </button>
+            ) : (
+              <a
+                href="/login"
+                className="rounded-xl border border-white/70 bg-black/15 px-3 py-2 text-xs font-bold text-white backdrop-blur sm:px-4 sm:text-sm"
+              >
+                 Sign In
+              </a>
+            )}
 
-          {signedIn ? (
-  <button
-    type="button"
-    onClick={() => void handleSignOut()}
-    className="rounded-xl border border-white/70 bg-black/15 px-3 py-2 text-xs font-bold text-white backdrop-blur"
-  >
-    Sign Out
-  </button>
-) : (
-  <a
-    href="/login"
-    className="rounded-xl border border-white/70 bg-black/15 px-3 py-2 text-xs font-bold text-white backdrop-blur"
-  >
-    Sign In
-  </a>
-)}
           </div>
         </div>
       </header>
@@ -1081,16 +1162,15 @@ ${combinedTripRequest}
               icon="❤️"
               label="What sounds good?"
             >
-            <input
-  value={interests}
-  onChange={(e) => {
-    setInterests(e.target.value);
-  }}
-  placeholder="Waterfalls, scenic drives, great food, hiking, hidden gems..."
-  onFocus={(e) => e.currentTarget.select()}
-  onClick={(e) => e.currentTarget.select()}
-  className="w-full bg-transparent font-black outline-none"
-/>
+              <input
+                value={interests}
+                onChange={(e) =>
+                  setInterests(e.target.value)
+                }
+                onFocus={(e) => e.currentTarget.select()}
+                onClick={(e) => e.currentTarget.select()}
+                className="w-full bg-transparent font-black outline-none"
+              />
             </PlannerField>
           </div>
 

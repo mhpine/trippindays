@@ -55,8 +55,31 @@ type BudgetBreakdown = {
   activities: number;
   parking: number;
   lodging: number;
+  transportation: number;
   other: number;
   total: number;
+};
+
+type TripExpenseCategory =
+  | "Flights"
+  | "Train / Bus"
+  | "Lodging"
+  | "Rental Car"
+  | "Activities"
+  | "Fuel"
+  | "Food"
+  | "Parking"
+  | "Other";
+
+type TripExpense = {
+  id: string;
+  category: TripExpenseCategory;
+  amount: number;
+  currency: string;
+  label: string;
+  source: string;
+  testMode: boolean;
+  createdAt: string;
 };
 
 type OvernightStop = {
@@ -75,9 +98,104 @@ type DetourStop = {
   reason: string;
 };
 
+type FlightOffer = {
+  id: string;
+  totalAmount: string;
+  totalCurrency: string;
+  airline: string;
+  airlineLogo: string | null;
+  operatingCarriers: string[];
+
+  origin: string;
+  destination: string;
+  departureTime: string | null;
+  arrivalTime: string | null;
+  duration: string | null;
+  stops: number;
+
+  returnOrigin: string | null;
+  returnDestination: string | null;
+  returnDepartureTime: string | null;
+  returnArrivalTime: string | null;
+  returnDuration: string | null;
+  returnStops: number | null;
+
+  expiresAt: string | null;
+};
+
+type FlightCheckoutPassenger = {
+  id: string;
+  type: string;
+};
+
+type FlightPassengerForm = {
+  id: string;
+  title: "mr" | "mrs" | "ms" | "miss" | "dr";
+  givenName: string;
+  familyName: string;
+  bornOn: string;
+  gender: "m" | "f";
+  email: string;
+  phoneNumber: string;
+};
+
+type FlightCheckoutOffer = {
+  id: string;
+  totalAmount: string;
+  totalCurrency: string;
+  expiresAt: string | null;
+  liveMode: boolean;
+  passengers: FlightCheckoutPassenger[];
+};
+
+type FlightOrderConfirmation = {
+  id: string;
+  bookingReference: string;
+  totalAmount: string;
+  totalCurrency: string;
+  passengerCount: number;
+  airline: string;
+  liveMode: boolean;
+};
+
+
+function normalizePhoneForDuffel(value: string): string {
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/\D/g, "");
+
+  if (!digits) return "";
+
+  if (trimmed.startsWith("+")) {
+    return `+${digits}`;
+  }
+
+  if (digits.length === 10) {
+    return `+1${digits}`;
+  }
+
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `+${digits}`;
+  }
+
+  return `+${digits}`;
+}
+
+function formatPhoneForDisplay(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  const localDigits =
+    digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+
+  if (localDigits.length === 10) {
+    return `(${localDigits.slice(0, 3)}) ${localDigits.slice(3, 6)}-${localDigits.slice(6)}`;
+  }
+
+  return value;
+}
+
 
 export default function TripPage() {
   const [request, setRequest] = useState("");
+  const budget = getValue(request, "Budget") || "Not specified";
  const [aiPlan, setAiPlan] = useState ("");
   const [tripTitle, setTripTitle] = useState("");
   const [destination, setDestination] = useState("");
@@ -89,6 +207,8 @@ const [pexelsUrl, setPexelsUrl] = useState("");
   const [summary, setSummary] = useState("");
   const [roundTripMiles, setRoundTripMiles] = useState<number | null>(null);
   const [budgetBreakdown, setBudgetBreakdown] = useState<BudgetBreakdown | null>(null);
+  const [tripExpenses, setTripExpenses] = useState<TripExpense[]>([]);
+  const [currentSavedTripId, setCurrentSavedTripId] = useState<string | null>(null);
   const budgetItems = budgetBreakdown
   ? [
       { label: "Fuel", value: budgetBreakdown.fuel },
@@ -96,9 +216,114 @@ const [pexelsUrl, setPexelsUrl] = useState("");
       { label: "Activities", value: budgetBreakdown.activities },
       { label: "Parking", value: budgetBreakdown.parking },
       { label: "Lodging", value: budgetBreakdown.lodging },
+      { label: "Transportation", value: budgetBreakdown.transportation },
       { label: "Other", value: budgetBreakdown.other },
     ]
   : [];
+
+
+  const tripExpenseStorageKey = useMemo(() => {
+    const source = request || "unsaved-trip";
+    let hash = 0;
+    for (let index = 0; index < source.length; index += 1) {
+      hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
+    }
+    return `trippindays-trip-expenses-${hash.toString(16)}`;
+  }, [request]);
+
+  const actualTripExpenses = useMemo(
+    () => tripExpenses.filter((expense) => !expense.testMode),
+    [tripExpenses]
+  );
+
+  const testTripExpenses = useMemo(
+    () => tripExpenses.filter((expense) => expense.testMode),
+    [tripExpenses]
+  );
+
+  const displayTripExpenses =
+    actualTripExpenses.length > 0 ? actualTripExpenses : testTripExpenses;
+
+  const tripSpentTotal = displayTripExpenses.reduce(
+    (sum, expense) => sum + expense.amount,
+    0
+  );
+
+  const numericTripBudget = Number(
+    String(budget || "").replace(/[^0-9.]/g, "")
+  );
+
+  const remainingTripBudget =
+    Number.isFinite(numericTripBudget) && numericTripBudget > 0
+      ? Math.max(numericTripBudget - tripSpentTotal, 0)
+      : null;
+
+  const spendingByCategory = displayTripExpenses.reduce<Record<string, number>>(
+    (totals, expense) => {
+      totals[expense.category] = (totals[expense.category] || 0) + expense.amount;
+      return totals;
+    },
+    {}
+  );
+
+  function recordTripExpense(expense: TripExpense) {
+    setTripExpenses((current) => {
+      if (current.some((item) => item.id === expense.id)) return current;
+
+      const next = [...current, expense];
+
+      // Unsaved-trip spending stays in React state only.
+      // Saved-trip spending is persisted in Supabase by trip_id.
+      return next;
+    });
+
+    if (currentSavedTripId && user) {
+      const supabase = createClient();
+
+      void (async () => {
+        const { data: existing, error: lookupError } = await supabase
+          .from("trip_expenses")
+          .select("id")
+          .eq("trip_id", currentSavedTripId)
+          .eq("user_id", user.id)
+          .eq("expense_key", expense.id)
+          .maybeSingle();
+
+        if (lookupError) {
+          console.error("Could not check saved trip expense:", lookupError);
+          return;
+        }
+
+        if (existing) return;
+
+        const { error: insertError } = await supabase
+          .from("trip_expenses")
+          .insert({
+            trip_id: currentSavedTripId,
+            user_id: user.id,
+            expense_key: expense.id,
+            category: expense.category,
+            label: expense.label,
+            amount: expense.amount,
+            currency: expense.currency || "USD",
+            source: expense.source || "TrippinDays",
+            test_mode: expense.testMode,
+            spent_at: expense.createdAt || new Date().toISOString(),
+          });
+
+        if (insertError) {
+          console.error(
+            "TRIP EXPENSE DIRECT INSERT ERROR:",
+            "message =", insertError.message,
+            "code =", insertError.code,
+            "details =", insertError.details,
+            "hint =", insertError.hint
+          );
+        }
+      })();
+    }
+  }
+
   const [whySelected, setWhySelected] = useState<string[]>([]); 
   const [musicSuggestions, setMusicSuggestions] = useState<
   { title: string; artist: string; reason: string }[]
@@ -120,6 +345,17 @@ const [remixCount, setRemixCount] = useState(0);
 const MAX_REMIXES = 2;
   const [recentDestinations, setRecentDestinations] = useState<string[]>([]);
  
+
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+
+  // Saved trips load their own spending from Supabase.
+  if (params.get("savedTrip")) return;
+
+  // Every new/unsaved trip starts clean.
+  setTripExpenses([]);
+  setCurrentSavedTripId(null);
+}, [request]);
 
 useEffect(() => {
   if (!imageSearchQuery) return;
@@ -251,7 +487,7 @@ useEffect(() => {
         const { data: savedTrip, error: savedTripError } = await supabase
           .from("trips")
           .select(
-            "id, user_id, title, starting_location, destination, image_url, budget, time_available, travelers, trip_request, itinerary, status, created_at"
+            "id, user_id, title, starting_location, destination, image_url, budget, time_available, travelers, trip_request, itinerary, trip_snapshot, status, created_at"
           )
           .eq("id", savedTripId)
           .eq("user_id", currentUser.id)
@@ -261,20 +497,124 @@ useEffect(() => {
           throw savedTripError || new Error("Saved trip not found.");
         }
 
+        setCurrentSavedTripId(savedTrip.id);
+
+        const snapshot =
+          savedTrip.trip_snapshot &&
+          typeof savedTrip.trip_snapshot === "object" &&
+          !Array.isArray(savedTrip.trip_snapshot)
+            ? (savedTrip.trip_snapshot as Record<string, any>)
+            : {};
+
         const savedRequest = savedTrip.trip_request || "";
-        setRequest(savedRequest);
-        setAiPlan(savedTrip.itinerary || "");
-        setDetourStops(parseDetourStops(savedTrip.itinerary || ""));
-        setTripTitle(savedTrip.title || "Your TrippinDays Adventure");
-        setDestination(savedTrip.destination || "");
-        setImageUrl(savedTrip.image_url || "");
-        setSummary("");
-        setRoundTripMiles(null);
-        setBudgetBreakdown(null);
-        setWhySelected([]);
-        setAdventures([]);
-        setMusicSuggestions([]);
-        setLiveChecks(null);
+        const frozenPlan =
+          typeof snapshot.aiPlan === "string" && snapshot.aiPlan.trim()
+            ? snapshot.aiPlan
+            : savedTrip.itinerary || "";
+
+        setRequest(
+          typeof snapshot.request === "string" && snapshot.request.trim()
+            ? snapshot.request
+            : savedRequest
+        );
+        setAiPlan(frozenPlan);
+        setDetourStops(
+          Array.isArray(snapshot.detourStops)
+            ? snapshot.detourStops
+            : parseDetourStops(frozenPlan)
+        );
+        setTripTitle(
+          typeof snapshot.tripTitle === "string" && snapshot.tripTitle.trim()
+            ? snapshot.tripTitle
+            : savedTrip.title || "Your TrippinDays Adventure"
+        );
+        setDestination(
+          typeof snapshot.destination === "string" && snapshot.destination.trim()
+            ? snapshot.destination
+            : savedTrip.destination || ""
+        );
+        setImageSearchQuery(
+          typeof snapshot.imageSearchQuery === "string"
+            ? snapshot.imageSearchQuery
+            : ""
+        );
+        setImageUrl(
+          typeof snapshot.imageUrl === "string" && snapshot.imageUrl
+            ? snapshot.imageUrl
+            : savedTrip.image_url || ""
+        );
+        setPhotographer(
+          typeof snapshot.photographer === "string" ? snapshot.photographer : ""
+        );
+        setPhotographerUrl(
+          typeof snapshot.photographerUrl === "string"
+            ? snapshot.photographerUrl
+            : ""
+        );
+        setPexelsUrl(
+          typeof snapshot.pexelsUrl === "string" ? snapshot.pexelsUrl : ""
+        );
+        setSummary(typeof snapshot.summary === "string" ? snapshot.summary : "");
+        setRoundTripMiles(
+          typeof snapshot.roundTripMiles === "number"
+            ? snapshot.roundTripMiles
+            : null
+        );
+        setBudgetBreakdown(
+          snapshot.budgetBreakdown &&
+          typeof snapshot.budgetBreakdown === "object"
+            ? {
+                ...snapshot.budgetBreakdown,
+                transportation:
+                  typeof snapshot.budgetBreakdown.transportation === "number"
+                    ? snapshot.budgetBreakdown.transportation
+                    : 0,
+              }
+            : null
+        );
+        setWhySelected(
+          Array.isArray(snapshot.whySelected) ? snapshot.whySelected : []
+        );
+        setAdventures(
+          Array.isArray(snapshot.adventures) ? snapshot.adventures : []
+        );
+        setMusicSuggestions(
+          Array.isArray(snapshot.musicSuggestions)
+            ? snapshot.musicSuggestions
+            : []
+        );
+        setLiveChecks(
+          snapshot.liveChecks && typeof snapshot.liveChecks === "object"
+            ? snapshot.liveChecks
+            : null
+        );
+
+        const { data: savedExpenses, error: expensesError } = await supabase
+          .from("trip_expenses")
+          .select(
+            "id, expense_key, category, label, amount, currency, source, test_mode, spent_at"
+          )
+          .eq("trip_id", savedTrip.id)
+          .eq("user_id", currentUser.id)
+          .order("spent_at", { ascending: true });
+
+        if (expensesError) {
+          console.error("Could not load saved trip spending:", expensesError);
+        } else {
+          setTripExpenses(
+            (savedExpenses || []).map((expense: any) => ({
+              id: expense.expense_key || expense.id,
+              category: expense.category as TripExpenseCategory,
+              amount: Number(expense.amount) || 0,
+              currency: expense.currency || "USD",
+              label: expense.label || expense.category || "Trip expense",
+              source: expense.source || "Supabase",
+              testMode: expense.test_mode === true,
+              createdAt: expense.spent_at || new Date().toISOString(),
+            }))
+          );
+        }
+
         setSaveMessage("✅ Saved Trip");
 
         // Keep the exact request handy if the traveler later chooses Regenerate.
@@ -324,10 +664,9 @@ useEffect(() => {
 }, []);
 
   const start = getValue(request, "Starting Location");
-  const budget = getValue(request, "Budget") || "Not specified";
   const time = getValue(request, "Time Available") || "Not specified";
   const travelers = getValue(request, "Travelers") || "Not specified";
-  const startDate = getValue(request, "Start Date");
+  const startDate = getValue(request, "Start Date") || getValue(request, "Trip Date");
 
   const sections = useMemo(
     () => parsePlan(aiPlan, destination),
@@ -399,7 +738,17 @@ console.log("BUDGET BREAKDOWN:", data.budgetBreakdown);
       );
       setTripTitle(data.title || "Your TrippinDays Adventure");
       setDestination(data.destination || "");
-      setBudgetBreakdown(data.budgetBreakdown || null);
+      setBudgetBreakdown(
+        data.budgetBreakdown
+          ? {
+              ...data.budgetBreakdown,
+              transportation:
+                typeof data.budgetBreakdown.transportation === "number"
+                  ? data.budgetBreakdown.transportation
+                  : 0,
+            }
+          : null
+      );
       setImageSearchQuery(data.imageSearchQuery || "");
      if (data.destination) {
   setRecentDestinations((current) => {
@@ -460,7 +809,6 @@ ${adventure.reason}
     localStorage.setItem("trippindays-request", nextRequest);
     window.location.href = "/trip";
   }
-
   async function saveTrip() {
     if (isSaving) return;
 
@@ -489,38 +837,140 @@ ${adventure.reason}
         ? Number(rawBudget.replace(/[^0-9.]/g, ""))
         : null;
 
-      const { data: savedTrip, error: insertError } = await supabase
-        .from("trips")
-        .insert({
-          user_id: currentUser.id,
-          title:
-            tripTitle.trim() ||
-            destination.trim() ||
-            "My TrippinDays Adventure",
-          starting_location: start || null,
-          destination: destination.trim() || null,
-          image_url: imageUrl || null,
-          budget:
-            numericBudget !== null && !Number.isNaN(numericBudget)
-              ? numericBudget
-              : null,
-          time_available: getValue(request, "Time Available") || null,
-          travelers: getValue(request, "Travelers") || null,
-          trip_request: request,
-          itinerary: aiPlan,
-          status: "saved",
-        })
-        .select("id")
-        .single();
+      const tripSnapshot = {
+        version: 1,
+        savedAt: new Date().toISOString(),
+        request,
+        aiPlan,
+        tripTitle,
+        destination,
+        imageSearchQuery,
+        imageUrl,
+        photographer,
+        photographerUrl,
+        pexelsUrl,
+        summary,
+        roundTripMiles,
+        budgetBreakdown,
+        whySelected,
+        adventures,
+        musicSuggestions,
+        liveChecks,
+        detourStops,
+      };
 
-      if (insertError) throw insertError;
+      const tripRow = {
+        user_id: currentUser.id,
+        title:
+          tripTitle.trim() ||
+          destination.trim() ||
+          "My TrippinDays Adventure",
+        starting_location: start || null,
+        destination: destination.trim() || null,
+        image_url: imageUrl || null,
+        budget:
+          numericBudget !== null && !Number.isNaN(numericBudget)
+            ? numericBudget
+            : null,
+        time_available: getValue(request, "Time Available") || null,
+        travelers: getValue(request, "Travelers") || null,
+        trip_request: request,
+        itinerary: aiPlan,
+        trip_snapshot: tripSnapshot,
+        status: "saved",
+      };
 
-      setSaveMessage("✅ Trip Saved!");
+      let savedTripId = currentSavedTripId;
 
-      // Remember the saved record so this exact itinerary can be reopened.
-      if (savedTrip?.id) {
-        localStorage.setItem("trippindays-last-saved-trip-id", savedTrip.id);
+      if (currentSavedTripId) {
+        const { error: updateError } = await supabase
+          .from("trips")
+          .update(tripRow)
+          .eq("id", currentSavedTripId)
+          .eq("user_id", currentUser.id);
+
+        if (updateError) throw updateError;
+      } else {
+        const { data: savedTrip, error: insertError } = await supabase
+          .from("trips")
+          .insert(tripRow)
+          .select("id")
+          .single();
+
+        if (insertError) throw insertError;
+        savedTripId = savedTrip?.id || null;
       }
+
+      if (savedTripId) {
+        setCurrentSavedTripId(savedTripId);
+        localStorage.setItem("trippindays-last-saved-trip-id", savedTripId);
+
+        if (tripExpenses.length > 0) {
+          const { data: existingExpenses, error: existingExpenseError } =
+            await supabase
+              .from("trip_expenses")
+              .select("expense_key")
+              .eq("trip_id", savedTripId)
+              .eq("user_id", currentUser.id);
+
+          if (existingExpenseError) {
+            console.error(
+              "TRIP EXPENSE LOOKUP ERROR:",
+              "message =", existingExpenseError.message,
+              "code =", existingExpenseError.code,
+              "details =", existingExpenseError.details,
+              "hint =", existingExpenseError.hint
+            );
+            setSaveMessage(
+              `Trip saved, but spending lookup failed: ${existingExpenseError.message}`
+            );
+          } else {
+            const existingExpenseKeys = new Set(
+              (existingExpenses || []).map((expense: any) => expense.expense_key)
+            );
+
+            const rowsToInsert = tripExpenses
+              .filter((expense) => !existingExpenseKeys.has(expense.id))
+              .map((expense) => ({
+                trip_id: savedTripId,
+                user_id: currentUser.id,
+                expense_key: expense.id,
+                category: expense.category,
+                label: expense.label,
+                amount: expense.amount,
+                currency: expense.currency || "USD",
+                source: expense.source || "TrippinDays",
+                test_mode: expense.testMode,
+                spent_at: expense.createdAt || new Date().toISOString(),
+              }));
+
+            if (rowsToInsert.length > 0) {
+              const { error: expenseInsertError } = await supabase
+                .from("trip_expenses")
+                .insert(rowsToInsert);
+
+              if (expenseInsertError) {
+                console.error(
+                  "TRIP EXPENSE INSERT ERROR:",
+                  "message =", expenseInsertError.message,
+                  "code =", expenseInsertError.code,
+                  "details =", expenseInsertError.details,
+                  "hint =", expenseInsertError.hint
+                );
+                setSaveMessage(
+                  `Trip saved, but spending failed: ${expenseInsertError.message}`
+                );
+              }
+            }
+          }
+        }
+      }
+
+      setSaveMessage((currentMessage) =>
+        currentMessage.startsWith("Trip saved, but")
+          ? currentMessage
+          : "✅ Trip Saved!"
+      );
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "The trip could not be saved.";
@@ -535,6 +985,7 @@ ${adventure.reason}
       setIsSaving(false);
     }
   }
+
 
  async function remixTrip(remixTypes: string[]) {
   if (!aiPlan.trim()) {
@@ -647,7 +1098,17 @@ console.log("BUDGET BREAKDOWN:", data.budgetBreakdown);
     setTripTitle(data.title || tripTitle);
     setDestination(data.destination || destination);
     setSummary(data.summary || summary);
-setBudgetBreakdown(data.budgetBreakdown || budgetBreakdown);
+setBudgetBreakdown(
+  data.budgetBreakdown
+    ? {
+        ...data.budgetBreakdown,
+        transportation:
+          typeof data.budgetBreakdown.transportation === "number"
+            ? data.budgetBreakdown.transportation
+            : 0,
+      }
+    : budgetBreakdown
+);
     setRoundTripMiles(
       typeof data.roundTripMiles === "number"
         ? data.roundTripMiles
@@ -854,7 +1315,19 @@ function scrollToPreviousSection() {
 }
 
   return (
-  <main className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#061426] text-white">
+  <main
+    className={`min-h-screen w-full max-w-full overflow-x-hidden text-white ${
+      isLoading ? "bg-cover bg-center bg-fixed bg-no-repeat" : "bg-[#061426]"
+    }`}
+    style={
+      isLoading
+        ? {
+            backgroundImage:
+              "linear-gradient(rgba(3,12,24,0.28), rgba(3,12,24,0.58)), url('/images/rainbowfalls.png')",
+          }
+        : undefined
+    }
+  >
       <button
         type="button"
         onClick={() => window.history.back()}
@@ -1224,7 +1697,8 @@ function scrollToPreviousSection() {
               #a855f7 ${((budgetBreakdown.fuel + budgetBreakdown.food) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities) / budgetBreakdown.total) * 360}deg,
               #f59e0b ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking) / budgetBreakdown.total) * 360}deg,
               #ec4899 ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking + budgetBreakdown.lodging) / budgetBreakdown.total) * 360}deg,
-              #e2e8f0 ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking + budgetBreakdown.lodging) / budgetBreakdown.total) * 360}deg 360deg
+              #14b8a6 ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking + budgetBreakdown.lodging) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking + budgetBreakdown.lodging + budgetBreakdown.transportation) / budgetBreakdown.total) * 360}deg,
+              #e2e8f0 ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking + budgetBreakdown.lodging + budgetBreakdown.transportation) / budgetBreakdown.total) * 360}deg 360deg
             )`,
           }}
         >
@@ -1267,6 +1741,10 @@ function scrollToPreviousSection() {
         </p>
 
         <p className="whitespace-nowrap font-bold">
+          🟩 Transportation — ${budgetBreakdown.transportation.toFixed(0)}
+        </p>
+
+        <p className="whitespace-nowrap font-bold">
           ⚪ Other — ${budgetBreakdown.other.toFixed(0)}
         </p>
 
@@ -1274,7 +1752,151 @@ function scrollToPreviousSection() {
     </div>
   </div>
 )}
-              <div className="w-full min-w-0 rounded-3xl border border-emerald-400/25 bg-emerald-500/10 p-7">
+              <div className="w-full min-w-0 rounded-3xl border border-cyan-400/20 bg-cyan-500/5 p-6">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-black uppercase tracking-wide text-cyan-300">
+                      💳 Trip Spending
+                    </p>
+                    <h2 className="mt-2 text-2xl font-black">
+                      {actualTripExpenses.length > 0
+                        ? "Money Spent So Far"
+                        : testTripExpenses.length > 0
+                          ? "Test Spending Preview"
+                          : "Nothing Spent Yet"}
+                    </h2>
+                    <p className="mt-2 text-sm text-white/60">
+                      Confirmed bookings made through TrippinDays are added automatically.
+                    </p>
+                  </div>
+
+                  {actualTripExpenses.length === 0 && testTripExpenses.length > 0 && (
+                    <span className="rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1 text-xs font-black uppercase tracking-widest text-amber-200">
+                      Test Mode
+                    </span>
+                  )}
+                </div>
+
+                {displayTripExpenses.length > 0 ? (
+                  <>
+                    <div className="mt-6 grid items-center gap-6 sm:grid-cols-[190px_1fr]">
+                      <div className="flex justify-center">
+                        <div
+                          className="relative h-44 w-44 shrink-0 rounded-full"
+                          style={{
+                            background:
+                              numericTripBudget > 0
+                                ? `conic-gradient(#22c55e 0deg ${
+                                    (Math.min(tripSpentTotal, numericTripBudget) /
+                                      numericTripBudget) *
+                                    360
+                                  }deg, rgba(255,255,255,0.12) ${
+                                    (Math.min(tripSpentTotal, numericTripBudget) /
+                                      numericTripBudget) *
+                                    360
+                                  }deg 360deg)`
+                                : "conic-gradient(#22c55e 0deg 360deg)",
+                          }}
+                        >
+                          <div className="absolute inset-5 flex items-center justify-center rounded-full bg-slate-950">
+                            <div className="text-center">
+                              <p className="text-xs font-black uppercase text-white/50">
+                                {actualTripExpenses.length > 0 ? "Spent" : "Test"}
+                              </p>
+                              <p className="text-2xl font-black text-white">
+                                ${tripSpentTotal.toFixed(0)}
+                              </p>
+                              {remainingTripBudget !== null && (
+                                <p className="mt-1 text-xs font-bold text-emerald-300">
+                                  ${remainingTripBudget.toFixed(0)} left
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        {Object.entries(spendingByCategory).map(([category, amount]) => (
+                          <div
+                            key={category}
+                            className="flex items-center justify-between gap-4 rounded-xl bg-black/20 px-4 py-3"
+                          >
+                            <span className="font-bold">
+                              {category === "Flights"
+                                ? "✈️"
+                                : category === "Train / Bus"
+                                  ? "🚆"
+                                  : category === "Lodging"
+                                    ? "🏨"
+                                    : category === "Rental Car"
+                                      ? "🚗"
+                                      : category === "Activities"
+                                        ? "🎟️"
+                                        : category === "Fuel"
+                                          ? "⛽"
+                                          : category === "Food"
+                                            ? "🍽️"
+                                            : category === "Parking"
+                                              ? "🅿️"
+                                              : "💵"}{" "}
+                              {category}
+                            </span>
+                            <span className="font-black text-emerald-300">
+                              ${amount.toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
+
+                        {Number.isFinite(numericTripBudget) && numericTripBudget > 0 && (
+                          <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="font-bold text-white/70">Trip Budget</span>
+                              <span className="font-black">${numericTripBudget.toFixed(2)}</span>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between gap-4">
+                              <span className="font-bold text-white/70">Remaining</span>
+                              <span className="font-black text-cyan-300">
+                                ${Math.max(numericTripBudget - tripSpentTotal, 0).toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-5 space-y-2">
+                      {displayTripExpenses.map((expense) => (
+                        <div
+                          key={expense.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/15 px-4 py-3 text-sm"
+                        >
+                          <div>
+                            <p className="font-black">{expense.label}</p>
+                            <p className="text-xs text-white/45">
+                              {expense.source}
+                              {expense.testMode ? " • Test booking" : " • Confirmed"}
+                            </p>
+                          </div>
+                          <p className="font-black text-emerald-300">
+                            {expense.currency} {expense.amount.toFixed(2)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-black/15 p-6 text-center">
+                    <p className="text-4xl">💳</p>
+                    <p className="mt-3 font-black">No confirmed spending yet</p>
+                    <p className="mt-2 text-sm text-white/55">
+                      Your first confirmed flight, train, lodging, rental car, or ticket purchase can appear here automatically.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="w-full min-w-0 rounded-3xl border border-emerald-400/25 bg-emerald-500/10 p-7 lg:col-span-2">
                 <p className="text-sm font-black uppercase tracking-widest text-emerald-300">🏆 Why this trip fits</p>
                 <h2 className="mt-3 text-3xl font-black">{destination}</h2>
                 <div className="mt-5 space-y-3">
@@ -1561,7 +2183,12 @@ className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text
   liveChecks={liveChecks}
   overnightStops={overnightStops}
   travelers={travelers}
+  origin={start}
+  destination={destination}
+  tripDate={startDate}
+  tripPlan={aiPlan}
   onNavigate={(query) => navigate(query)}
+  onRecordTripExpense={recordTripExpense}
 />
             </section>
 
@@ -1854,17 +2481,423 @@ function WeatherPanel({
   liveChecks,
   overnightStops,
   travelers,
+  origin,
+  destination,
+  tripDate,
+  tripPlan,
   onNavigate,
+  onRecordTripExpense,
 }: {
   liveChecks: LiveChecks | null;
   overnightStops: OvernightStop[];
   travelers: string;
+  origin: string;
+  destination: string;
+  tripDate: string;
+  tripPlan: string;
   onNavigate: (query: string) => void;
+  onRecordTripExpense: (expense: TripExpense) => void;
 }) {
   const [bookingChoice, setBookingChoice] = useState<{
     stop: OvernightStop;
     kind: "Hotels & Motels" | "Campgrounds & RV" | "Cabins & Lodges";
   } | null>(null);
+
+  const [flightOpen, setFlightOpen] = useState(false);
+  const [trainBusOpen, setTrainBusOpen] = useState(false);
+  const [flightOrigin, setFlightOrigin] = useState(origin);
+  const [flightDestination, setFlightDestination] = useState(destination);
+  const [flightDepartureDate, setFlightDepartureDate] = useState(tripDate);
+  const [flightReturnDate, setFlightReturnDate] = useState("");
+  const [flightOffers, setFlightOffers] = useState<FlightOffer[]>([]);
+  const [selectedOutboundKey, setSelectedOutboundKey] = useState("");
+  const [flightLoading, setFlightLoading] = useState(false);
+  const [flightError, setFlightError] = useState("");
+  const [resolvedFlightRoute, setResolvedFlightRoute] = useState("");
+  const [airportResolving, setAirportResolving] = useState(false);
+  const [selectedFlight, setSelectedFlight] = useState<FlightOffer | null>(null);
+  const [checkoutOffer, setCheckoutOffer] = useState<FlightCheckoutOffer | null>(null);
+  const [passengerForms, setPassengerForms] = useState<FlightPassengerForm[]>([]);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
+  const [orderConfirmation, setOrderConfirmation] =
+    useState<FlightOrderConfirmation | null>(null);
+  const [orderLoading, setOrderLoading] = useState(false);
+
+  // Omio's widget currently displays YYYY-MM-DD one calendar day early in
+  // Pacific-time browsers. Keep TrippinDays' actual dates unchanged and only
+  // compensate in the values handed to the embedded Omio widget.
+  const omioDepartureDate = tripDate ? addCalendarDays(tripDate, 1) : "";
+  const omioReturnDate = flightReturnDate
+    ? addCalendarDays(flightReturnDate, 1)
+    : "";
+
+  useEffect(() => {
+    // Load the official Omio affiliate widget only when the traveler opens
+    // Trains & Buses. This makes sure the trip dates below are already set
+    // before Omio initializes the widget.
+    if (!trainBusOpen) return;
+
+    const styleId = "trippindays-omio-widget-style";
+    const scriptId = "trippindays-omio-widget-script";
+    const cacheBust = Date.now();
+
+    if (!document.getElementById(styleId)) {
+      const widgetStyle = document.createElement("link");
+      widgetStyle.id = styleId;
+      widgetStyle.rel = "stylesheet";
+      widgetStyle.href =
+        `https://www.omio.com/gcs-proxy/b2b-nemo-prod/bundle/en/bundle.css?v=${cacheBust}`;
+      document.head.appendChild(widgetStyle);
+    }
+
+    // The Omio bundle initializes widgets that are already in the DOM.
+    // Remove an older bundle instance before loading a fresh one so a
+    // reopened modal can initialize the current widget cleanly.
+    document.getElementById(scriptId)?.remove();
+
+    const widgetScript = document.createElement("script");
+    widgetScript.id = scriptId;
+    widgetScript.src =
+      `https://www.omio.com/gcs-proxy/b2b-nemo-prod/bundle/en/bundle.js?v=${cacheBust}`;
+    widgetScript.async = true;
+    document.body.appendChild(widgetScript);
+  }, [trainBusOpen, omioDepartureDate, omioReturnDate]);
+
+  useEffect(() => {
+    setFlightOrigin(origin);
+  }, [origin]);
+
+  useEffect(() => {
+    setFlightDestination(destination);
+  }, [destination]);
+
+  useEffect(() => {
+    if (tripDate) {
+      setFlightDepartureDate(tripDate);
+    }
+  }, [tripDate]);
+
+  useEffect(() => {
+    // Prefer the checkout date from the final overnight stop. If the itinerary
+    // did not use the exact "Tonight in ..." phrasing needed by the lodging
+    // parser, fall back to the highest "Day N" heading in the itinerary.
+    // This lets round-trip transportation still get a sensible return date.
+    if (overnightStops.length > 0) {
+      const lastStop = overnightStops[overnightStops.length - 1];
+
+      if (lastStop?.checkOut) {
+        setFlightReturnDate(lastStop.checkOut);
+        return;
+      }
+    }
+
+    if (tripDate && tripPlan) {
+      const dayNumbers = Array.from(tripPlan.matchAll(/(?:^|\n)\s*(?:#{1,6}\s*)?(?:\*\*)?day\s*(\d+)\b/gim))
+        .map((match) => Number(match[1]))
+        .filter((value) => Number.isFinite(value) && value > 0);
+
+      const lastDay = dayNumbers.length > 0 ? Math.max(...dayNumbers) : 0;
+
+      if (lastDay > 1) {
+        setFlightReturnDate(addCalendarDays(tripDate, lastDay - 1));
+        return;
+      }
+    }
+
+    setFlightReturnDate("");
+  }, [overnightStops, tripDate, tripPlan]);
+
+  async function resolveAirports() {
+    if (!origin.trim() || !destination.trim()) return;
+
+    try {
+      setAirportResolving(true);
+      setFlightError("");
+      setResolvedFlightRoute("");
+
+      const response = await fetch("/api/airports/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          origin: origin.trim(),
+          destination: destination.trim(),
+          destinationLatitude: liveChecks?.latitude ?? null,
+          destinationLongitude: liveChecks?.longitude ?? null,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Could not find nearby airports.");
+      }
+
+      if (data?.origin?.iataCode) setFlightOrigin(data.origin.iataCode);
+      if (data?.destination?.iataCode) setFlightDestination(data.destination.iataCode);
+
+      if (data?.origin && data?.destination) {
+        setResolvedFlightRoute(
+          `${data.origin.name} (${data.origin.iataCode}) → ${data.destination.name} (${data.destination.iataCode})`
+        );
+      }
+    } catch (error) {
+      setFlightError(
+        error instanceof Error ? error.message : "Could not find nearby airports."
+      );
+    } finally {
+      setAirportResolving(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!flightOpen) return;
+    void resolveAirports();
+  }, [flightOpen, origin, destination, liveChecks?.latitude, liveChecks?.longitude]);
+
+  async function searchFlights() {
+    if (!flightOrigin.trim() || !flightDestination.trim() || !flightDepartureDate) {
+      setFlightError("Starting location, destination, and departure date are required.");
+      return;
+    }
+
+    try {
+      setFlightLoading(true);
+      setFlightError("");
+      setFlightOffers([]);
+      setSelectedOutboundKey("");
+      setResolvedFlightRoute("");
+
+      const response = await fetch("/api/flights", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          origin: flightOrigin.trim(),
+          destination: flightDestination.trim(),
+          departureDate: flightDepartureDate,
+          returnDate: flightReturnDate || undefined,
+          adults: getAdultCount(travelers),
+          cabinClass: "economy",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Could not search flights.");
+      }
+
+      const offers = Array.isArray(data?.offers) ? data.offers : [];
+      setFlightOffers(offers);
+
+      if (data?.resolvedOrigin && data?.resolvedDestination) {
+        setResolvedFlightRoute(
+          `${data.resolvedOrigin.name} (${data.resolvedOrigin.iataCode}) → ${data.resolvedDestination.name} (${data.resolvedDestination.iataCode})`
+        );
+      }
+
+      if (offers.length === 0) {
+        setFlightError(
+          "No test flights were found for that route. Try a nearby major airport or city."
+        );
+      }
+    } catch (error) {
+      setFlightError(
+        error instanceof Error ? error.message : "Could not search flights."
+      );
+    } finally {
+      setFlightLoading(false);
+    }
+  }
+
+  function outboundKey(offer: FlightOffer) {
+    return [
+      offer.airline,
+      offer.origin,
+      offer.destination,
+      offer.departureTime || "",
+      offer.arrivalTime || "",
+      offer.duration || "",
+      String(offer.stops),
+      ...(offer.operatingCarriers || []),
+    ].join("|");
+  }
+
+  const uniqueOutboundOffers = flightOffers.filter(
+    (offer, index, allOffers) =>
+      allOffers.findIndex((candidate) => outboundKey(candidate) === outboundKey(offer)) === index
+  );
+
+  const selectedOutboundOffers = selectedOutboundKey
+    ? flightOffers.filter((offer) => outboundKey(offer) === selectedOutboundKey)
+    : [];
+
+  const selectedOutbound =
+    selectedOutboundOffers.length > 0 ? selectedOutboundOffers[0] : null;
+
+  async function prepareFlightCheckout(offer: FlightOffer) {
+    try {
+      setCheckoutLoading(true);
+      setCheckoutError("");
+      setOrderConfirmation(null);
+
+      const response = await fetch("/api/flights/offer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ offerId: offer.id }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Could not refresh this flight offer.");
+      }
+
+      if (data?.liveMode !== false) {
+        throw new Error(
+          "Safety stop: TrippinDays will only create Duffel test bookings right now."
+        );
+      }
+
+      const passengers = Array.isArray(data?.passengers) ? data.passengers : [];
+
+      setSelectedFlight(offer);
+      setCheckoutOffer({
+        id: data.id,
+        totalAmount: data.totalAmount,
+        totalCurrency: data.totalCurrency,
+        expiresAt: data.expiresAt || null,
+        liveMode: false,
+        passengers,
+      });
+
+      setPassengerForms(
+        passengers.map((passenger: FlightCheckoutPassenger) => ({
+          id: passenger.id,
+          title: "mr",
+          givenName: "",
+          familyName: "",
+          bornOn: "",
+          gender: "m",
+          email: "",
+          phoneNumber: "",
+        }))
+      );
+    } catch (error) {
+      setCheckoutError(
+        error instanceof Error ? error.message : "Could not prepare flight checkout."
+      );
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }
+
+  function updatePassengerForm(
+    passengerId: string,
+    field: keyof Omit<FlightPassengerForm, "id">,
+    value: string
+  ) {
+    setPassengerForms((current) =>
+      current.map((passenger) =>
+        passenger.id === passengerId
+          ? { ...passenger, [field]: value }
+          : passenger
+      )
+    );
+  }
+
+  async function createTestFlightOrder() {
+    if (!checkoutOffer) return;
+
+    const incompletePassenger = passengerForms.find(
+      (passenger) =>
+        !passenger.givenName.trim() ||
+        !passenger.familyName.trim() ||
+        !passenger.bornOn ||
+        !passenger.email.trim() ||
+        !passenger.phoneNumber.trim()
+    );
+
+    if (incompletePassenger) {
+      setCheckoutError("Complete all passenger fields before creating the test booking.");
+      return;
+    }
+
+    const normalizedPassengers = passengerForms.map((passenger) => ({
+      ...passenger,
+      phoneNumber: normalizePhoneForDuffel(passenger.phoneNumber),
+    }));
+
+    const invalidPhone = normalizedPassengers.find(
+      (passenger) => !/^\+[1-9]\d{7,14}$/.test(passenger.phoneNumber)
+    );
+
+    if (invalidPhone) {
+      setCheckoutError(
+        "Enter a valid phone number. U.S. numbers can be entered normally, like (360) 555-1234."
+      );
+      return;
+    }
+
+    try {
+      setOrderLoading(true);
+      setCheckoutError("");
+
+      const response = await fetch("/api/flights/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          offerId: checkoutOffer.id,
+          passengers: normalizedPassengers,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Duffel could not create the test order.");
+      }
+
+      const confirmation = {
+        id: data.id,
+        bookingReference: data.bookingReference || "Pending",
+        totalAmount: data.totalAmount,
+        totalCurrency: data.totalCurrency,
+        passengerCount:
+          Number.isFinite(Number(data.passengerCount)) && Number(data.passengerCount) > 0
+            ? Number(data.passengerCount)
+            : passengerForms.length,
+        airline: data.airline || selectedFlight?.airline || "Airline",
+        liveMode: data.liveMode === true,
+      };
+
+      setOrderConfirmation(confirmation);
+
+      const confirmedAmount = Number(data.totalAmount);
+      if (Number.isFinite(confirmedAmount) && confirmedAmount > 0 && data.id) {
+        onRecordTripExpense({
+          id: `flight-${data.id}`,
+          category: "Flights",
+          amount: confirmedAmount,
+          currency: data.totalCurrency || "USD",
+          label: `${confirmation.airline} • ${confirmation.bookingReference} • ${confirmation.passengerCount} ${
+            confirmation.passengerCount === 1 ? "traveler" : "travelers"
+          }`,
+          source: "Duffel",
+          testMode: data.liveMode !== true,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    } catch (error) {
+      setCheckoutError(
+        error instanceof Error ? error.message : "Could not create the Duffel test order."
+      );
+    } finally {
+      setOrderLoading(false);
+    }
+  }
 
   function buildExpediaHotelUrl(
     stop: OvernightStop,
@@ -2011,8 +3044,8 @@ function WeatherPanel({
 
 {overnightStops.length > 0 && (
   <div className="mt-5 space-y-4">
-    <p className="text-xs font-black uppercase tracking-wider text-white/60">
-      Overnight Stays by Trip Stage
+    <p className="text-xs font-black uppercase tracking-wider text-cyan-300">
+      Stay — Overnight Lodging
     </p>
 
     {overnightStops.map((stop, index) => {
@@ -2065,6 +3098,770 @@ function WeatherPanel({
         </div>
       );
     })}
+  </div>
+)}
+
+
+<div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+  <p className="text-xs font-black uppercase tracking-wider text-cyan-300">
+    Transportation
+  </p>
+  <p className="mt-1 text-sm text-white/60">
+    Search flights, trains, and buses without re-entering your whole trip.
+  </p>
+
+  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <button
+      type="button"
+      onClick={() => setFlightOpen(true)}
+      className="rounded-xl border border-white/10 bg-black/25 p-4 text-left transition hover:border-sky-300/40 hover:bg-black/35"
+    >
+      <div className="text-2xl">✈️</div>
+      <p className="mt-2 font-black">Flights</p>
+      <p className="mt-1 text-xs text-white/55">Search flights for this trip →</p>
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setTrainBusOpen(true)}
+      className="rounded-xl border border-white/10 bg-black/25 p-4 text-left transition hover:border-emerald-300/40 hover:bg-black/35"
+    >
+      <div className="text-2xl">🚆</div>
+      <p className="mt-2 font-black">Trains & Buses</p>
+      <p className="mt-1 text-xs text-white/55">
+        Search live Omio rail and bus options →
+      </p>
+    </button>
+  </div>
+</div>
+
+
+<div
+  className={
+    trainBusOpen
+      ? "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/75 p-4"
+      : "hidden"
+  }
+  role="dialog"
+  aria-modal={trainBusOpen ? "true" : undefined}
+  aria-label="Train and bus search"
+  onClick={() => setTrainBusOpen(false)}
+>
+  <div
+    className="my-8 w-full max-w-4xl rounded-3xl border border-white/15 bg-[#0b1b2f] p-6 shadow-2xl"
+    onClick={(event) => event.stopPropagation()}
+  >
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="text-xs font-black uppercase tracking-widest text-emerald-300">
+          Book Your Trip
+        </p>
+        <h3 className="mt-2 text-3xl font-black">🚆 Find Trains & Buses</h3>
+        <p className="mt-2 text-sm text-white/60">
+          Search live routes with Omio. Bookings completed through Omio support TrippinDays through our affiliate partnership.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setTrainBusOpen(false)}
+        className="rounded-full border border-white/15 px-3 py-2 font-black hover:bg-white/10"
+        aria-label="Close train and bus search"
+      >
+        ✕
+      </button>
+    </div>
+
+    <div className="mt-5 grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <InfoCard label="From" value={origin || "Starting location"} />
+      <InfoCard label="To" value={destination || "Destination"} />
+      <InfoCard label="Depart" value={tripDate || "Choose in Omio"} />
+      <InfoCard
+        label="Return"
+        value={flightReturnDate || "One way / choose in Omio"}
+      />
+    </div>
+
+    <p className="mt-3 text-xs text-white/45">
+      👥 {getAdultCount(travelers)} adult traveler(s) • Dates are prefilled from this itinerary. Omio handles live origin/destination selection, availability, fares, and checkout.
+    </p>
+
+    <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-5">
+  <p className="text-sm leading-6 text-white/70">
+    Compare live train and bus options for this trip with Omio.
+  </p>
+
+  <a
+    href="https://omio.sjv.io/Gb4M1k"
+    target="_blank"
+    rel="noopener noreferrer sponsored"
+    className="mt-4 flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-emerald-500 px-6 py-4 text-center font-black text-slate-950 transition hover:bg-emerald-400"
+  >
+    Search Trains &amp; Buses on Omio →
+  </a>
+</div>
+
+    <p className="mt-3 text-center text-xs text-white/40">
+      Powered by Omio • Affiliate tracking enabled for TrippinDays
+    </p>
+  </div>
+</div>
+
+{flightOpen && (
+  <div
+    className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/75 p-4"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Flight search"
+    onClick={() => setFlightOpen(false)}
+  >
+    <div
+      className="my-8 w-full max-w-3xl rounded-3xl border border-white/15 bg-[#0b1b2f] p-6 shadow-2xl"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
+            Book Your Trip
+          </p>
+          <h3 className="mt-2 text-3xl font-black">✈️ Find Flights</h3>
+          <p className="mt-2 text-sm text-white/60">
+            TrippinDays fills in your trip details and Duffel searches available flight offers.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setFlightOpen(false)}
+          className="rounded-full border border-white/15 px-3 py-2 font-black hover:bg-white/10"
+          aria-label="Close flight search"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        <label className="text-sm font-bold text-white/80">
+          Departing Airport
+          <input
+            value={flightOrigin}
+            onChange={(event) => setFlightOrigin(event.target.value.toUpperCase())}
+            placeholder="Finding airport..."
+            className="mt-2 w-full rounded-xl border border-white/15 bg-slate-950/70 p-3 text-white outline-none focus:border-sky-400"
+          />
+        </label>
+
+        <label className="text-sm font-bold text-white/80">
+          Arrival Airport
+          <input
+            value={flightDestination}
+            onChange={(event) => setFlightDestination(event.target.value.toUpperCase())}
+            placeholder="Finding airport..."
+            className="mt-2 w-full rounded-xl border border-white/15 bg-slate-950/70 p-3 text-white outline-none focus:border-sky-400"
+          />
+        </label>
+
+        <label className="text-sm font-bold text-white/80">
+          Departure
+          <input
+            type="date"
+            value={flightDepartureDate}
+            onChange={(event) => setFlightDepartureDate(event.target.value)}
+            className="mt-2 w-full rounded-xl border border-white/15 bg-slate-950/70 p-3 text-white outline-none focus:border-sky-400"
+          />
+        </label>
+
+        <label className="text-sm font-bold text-white/80">
+          Return <span className="text-white/40">(optional)</span>
+          <input
+            type="date"
+            value={flightReturnDate}
+            onChange={(event) => setFlightReturnDate(event.target.value)}
+            min={flightDepartureDate || undefined}
+            className="mt-2 w-full rounded-xl border border-white/15 bg-slate-950/70 p-3 text-white outline-none focus:border-sky-400"
+          />
+        </label>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-black/20 p-4">
+        <p className="font-bold">👥 {getAdultCount(travelers)} adult traveler(s)</p>
+        <button
+          type="button"
+          onClick={() => void searchFlights()}
+          disabled={flightLoading || airportResolving}
+          className="rounded-xl bg-sky-500 px-5 py-3 font-black text-white hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {airportResolving
+            ? "Finding Airports..."
+            : flightLoading
+              ? "Searching Flights..."
+              : "Search Flights →"}
+        </button>
+      </div>
+
+      {resolvedFlightRoute && (
+        <p className="mt-4 rounded-xl bg-emerald-500/10 p-3 text-sm font-bold text-emerald-200">
+          Airport match: {resolvedFlightRoute}
+        </p>
+      )}
+
+      {flightError && (
+        <p className="mt-4 rounded-xl border border-red-400/25 bg-red-500/10 p-3 text-sm font-bold text-red-100">
+          {flightError}
+        </p>
+      )}
+
+      {flightOffers.length > 0 && (
+        <div className="mt-5 space-y-4">
+          {!selectedOutboundKey ? (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-xl font-black">Choose Your Outbound Flight</h4>
+                  <p className="mt-1 text-sm text-white/55">
+                    Pick the flight going to your destination first.
+                  </p>
+                </div>
+                <p className="text-xs text-white/45">Duffel test inventory</p>
+              </div>
+
+              {uniqueOutboundOffers.map((offer) => {
+                const matchingBundles = flightOffers.filter(
+                  (candidate) => outboundKey(candidate) === outboundKey(offer)
+                );
+
+                const lowestBundle = matchingBundles.reduce((lowest, candidate) => {
+                  const lowestValue = Number(lowest.totalAmount);
+                  const candidateValue = Number(candidate.totalAmount);
+
+                  if (!Number.isFinite(lowestValue)) return candidate;
+                  if (!Number.isFinite(candidateValue)) return lowest;
+                  return candidateValue < lowestValue ? candidate : lowest;
+                }, matchingBundles[0] || offer);
+
+                return (
+                  <button
+                    key={outboundKey(offer)}
+                    type="button"
+                    onClick={() => {
+                      if (offer.returnOrigin && offer.returnDestination) {
+                        setSelectedOutboundKey(outboundKey(offer));
+                        setCheckoutError("");
+                        setOrderConfirmation(null);
+                      } else {
+                        void prepareFlightCheckout(offer);
+                      }
+                    }}
+                    disabled={checkoutLoading}
+                    aria-label={`Choose outbound flight ${offer.origin} to ${offer.destination}`}
+                    className="w-full rounded-2xl border border-sky-400/20 bg-black/25 p-4 text-left transition hover:-translate-y-0.5 hover:border-sky-300/60 hover:bg-sky-500/10 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-sky-400/70 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        {offer.airlineLogo ? (
+                          <img
+                            src={offer.airlineLogo}
+                            alt=""
+                            className="h-10 w-10 rounded-lg bg-white object-contain p-1"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10">
+                            ✈️
+                          </div>
+                        )}
+
+                        <div>
+                          <p className="font-black">{offer.airline}</p>
+                          <p className="text-xs font-black uppercase tracking-widest text-sky-300">
+                            Outbound Flight
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-sm font-black text-emerald-300">
+                          Round trips from {lowestBundle.totalCurrency} {lowestBundle.totalAmount}
+                        </p>
+                        <p className="mt-1 text-xs text-white/45">
+                          Return flight chosen next
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="mt-3 text-lg font-black">
+                      {offer.origin} → {offer.destination}
+                    </p>
+
+                    <div className="mt-3 grid gap-2 text-sm text-white/70 sm:grid-cols-3">
+                      <p>
+                        🛫{" "}
+                        {offer.departureTime
+                          ? new Date(offer.departureTime).toLocaleString()
+                          : "Departure time unavailable"}
+                      </p>
+                      <p>
+                        🛬{" "}
+                        {offer.arrivalTime
+                          ? new Date(offer.arrivalTime).toLocaleString()
+                          : "Arrival time unavailable"}
+                      </p>
+                      <p>⏱️ {offer.duration || "Duration unavailable"}</p>
+                    </div>
+
+                    <p className="mt-3 text-xs font-bold text-white/55">
+                      {offer.stops === 0
+                        ? "Nonstop"
+                        : `${offer.stops} stop${offer.stops === 1 ? "" : "s"}`}
+                    </p>
+                  </button>
+                );
+              })}
+            </>
+          ) : (
+            <>
+              <div className="rounded-2xl border border-sky-400/25 bg-sky-500/10 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-widest text-sky-300">
+                      ✓ Outbound Selected
+                    </p>
+                    {selectedOutbound && (
+                      <>
+                        <p className="mt-2 text-lg font-black">
+                          {selectedOutbound.origin} → {selectedOutbound.destination}
+                        </p>
+                        <p className="mt-1 text-sm text-white/70">
+                          {selectedOutbound.departureTime
+                            ? new Date(selectedOutbound.departureTime).toLocaleString()
+                            : "Departure time unavailable"}
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-white/75">
+                          {selectedOutbound.airline}
+                        </p>
+                      </>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOutboundKey("")}
+                    disabled={checkoutLoading}
+                    className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-black transition hover:bg-white/10 disabled:opacity-50"
+                  >
+                    ← Change Outbound
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-xl font-black">Choose Your Return Flight</h4>
+                  <p className="mt-1 text-sm text-white/55">
+                    These return flights are valid with the outbound flight you selected.
+                  </p>
+                </div>
+                <p className="text-xs text-white/45">Step 2 of 2</p>
+              </div>
+
+              {selectedOutboundOffers
+                .filter((offer) => offer.returnOrigin && offer.returnDestination)
+                .map((offer) => (
+                  <button
+                    key={offer.id}
+                    type="button"
+                    onClick={() => void prepareFlightCheckout(offer)}
+                    disabled={checkoutLoading}
+                    aria-label={`Choose return flight ${offer.returnOrigin} to ${offer.returnDestination}`}
+                    className="w-full rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4 text-left transition hover:-translate-y-0.5 hover:border-cyan-300/70 hover:bg-cyan-500/20 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-cyan-400/70 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
+                          Return Flight
+                        </p>
+                        <p className="mt-2 text-lg font-black">
+                          {offer.returnOrigin} → {offer.returnDestination}
+                        </p>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-2xl font-black text-emerald-300">
+                          {offer.totalCurrency} {offer.totalAmount}
+                        </p>
+                        <p className="text-xs font-bold text-white/55">
+                          Round-trip total
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid gap-2 text-sm text-white/75 sm:grid-cols-3">
+                      <p>
+                        🛫{" "}
+                        {offer.returnDepartureTime
+                          ? new Date(offer.returnDepartureTime).toLocaleString()
+                          : "Departure time unavailable"}
+                      </p>
+
+                      <p>
+                        🛬{" "}
+                        {offer.returnArrivalTime
+                          ? new Date(offer.returnArrivalTime).toLocaleString()
+                          : "Arrival time unavailable"}
+                      </p>
+
+                      <p>⏱️ {offer.returnDuration || "Duration unavailable"}</p>
+                    </div>
+
+                    <p className="mt-3 text-xs font-bold text-white/55">
+                      {offer.returnStops === 0
+                        ? "Nonstop"
+                        : offer.returnStops !== null
+                          ? `${offer.returnStops} stop${offer.returnStops === 1 ? "" : "s"}`
+                          : ""}
+                    </p>
+
+                    {offer.operatingCarriers?.length > 0 && (
+                      <p className="mt-2 text-xs leading-5 text-white/50">
+                        Operated by: {offer.operatingCarriers.join(", ")}
+                      </p>
+                    )}
+
+                    {checkoutLoading && (
+                      <p className="mt-3 text-sm font-black text-emerald-300">
+                        Refreshing...
+                      </p>
+                    )}
+                  </button>
+                ))}
+            </>
+          )}
+
+          <p className="border-t border-white/10 pt-3 text-xs leading-5 text-white/45">
+            Test mode only. TrippinDays refreshes the complete Duffel round-trip offer before passenger checkout because airline prices and availability can change.
+          </p>
+        </div>
+      )}
+    </div>
+  </div>
+)}
+
+{checkoutOffer && selectedFlight && (
+  <div
+    className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/85 p-4"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Duffel test flight checkout"
+    onClick={() => {
+      if (!orderLoading) {
+        setCheckoutOffer(null);
+        setSelectedFlight(null);
+        setCheckoutError("");
+        setOrderConfirmation(null);
+      }
+    }}
+  >
+    <div
+      className="my-8 w-full max-w-3xl rounded-3xl border border-emerald-400/25 bg-[#071526] p-6 shadow-2xl"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        onClick={() => {
+          if (!orderLoading) {
+            setCheckoutOffer(null);
+            setSelectedFlight(null);
+            setCheckoutError("");
+            setOrderConfirmation(null);
+          }
+        }}
+        disabled={orderLoading}
+        className="mb-5 inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-50"
+      >
+        ← Back to Flight Results
+      </button>
+
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-black uppercase tracking-widest text-amber-300">
+            Duffel Test Mode
+          </p>
+          <h3 className="mt-2 text-3xl font-black">Passenger Checkout</h3>
+          <p className="mt-2 text-sm text-white/60">
+            This creates a Duffel TEST order only. No real airline ticket or real-money charge is created.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            if (!orderLoading) {
+              setCheckoutOffer(null);
+              setSelectedFlight(null);
+              setCheckoutError("");
+              setOrderConfirmation(null);
+            }
+          }}
+          className="rounded-full border border-white/15 px-3 py-2 font-black hover:bg-white/10"
+          aria-label="Close flight checkout"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="mt-5 grid gap-3 rounded-2xl border border-white/10 bg-black/25 p-4 sm:grid-cols-3">
+        <InfoCard
+          label="Flight"
+          value={`${selectedFlight.origin} → ${selectedFlight.destination}`}
+        />
+        <InfoCard
+          label="Airline"
+          value={selectedFlight.airline}
+        />
+        <InfoCard
+          label="Current Duffel Price"
+          value={`${checkoutOffer.totalCurrency} ${checkoutOffer.totalAmount}`}
+        />
+      </div>
+
+      {checkoutOffer.expiresAt && (
+        <p className="mt-3 text-xs font-bold text-amber-200/80">
+          Offer expires: {new Date(checkoutOffer.expiresAt).toLocaleString()}
+        </p>
+      )}
+
+      {orderConfirmation ? (
+        <div className="mt-6 rounded-3xl border border-emerald-400/35 bg-emerald-500/10 p-6 shadow-xl">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-black uppercase tracking-widest text-emerald-300">
+                ✅ Booking Confirmed
+              </p>
+              <h4 className="mt-2 text-3xl font-black">
+                {orderConfirmation.liveMode
+                  ? "Your Flight Is Booked"
+                  : "Your Test Flight Is Booked"}
+              </h4>
+              <p className="mt-2 text-sm text-white/60">
+                Keep this booking reference handy for your trip records.
+              </p>
+            </div>
+
+            {!orderConfirmation.liveMode && (
+              <span className="rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1 text-xs font-black uppercase tracking-widest text-amber-200">
+                Test Mode
+              </span>
+            )}
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-5">
+            <p className="text-xs font-black uppercase tracking-widest text-white/45">
+              Booking Reference
+            </p>
+            <p className="mt-1 text-3xl font-black tracking-wide text-emerald-300">
+              {orderConfirmation.bookingReference}
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <InfoCard label="Airline" value={orderConfirmation.airline} />
+            <InfoCard
+              label="Total"
+              value={`${orderConfirmation.totalCurrency} ${orderConfirmation.totalAmount}`}
+            />
+            <InfoCard
+              label="Outbound"
+              value={`${selectedFlight.origin} → ${selectedFlight.destination}${
+                selectedFlight.departureTime
+                  ? ` • ${new Date(selectedFlight.departureTime).toLocaleString()}`
+                  : ""
+              }`}
+            />
+            <InfoCard
+              label={selectedFlight.returnOrigin ? "Return" : "Trip Type"}
+              value={
+                selectedFlight.returnOrigin && selectedFlight.returnDestination
+                  ? `${selectedFlight.returnOrigin} → ${selectedFlight.returnDestination}${
+                      selectedFlight.returnDepartureTime
+                        ? ` • ${new Date(selectedFlight.returnDepartureTime).toLocaleString()}`
+                        : ""
+                    }`
+                  : "One way"
+              }
+            />
+          </div>
+
+          {!orderConfirmation.liveMode && (
+            <p className="mt-4 text-sm leading-6 text-white/60">
+              This is a Duffel test booking only. No real ticket was issued and no real money was charged.
+            </p>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="mt-6 space-y-5">
+            {passengerForms.map((passenger, index) => (
+              <div
+                key={passenger.id}
+                className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"
+              >
+                <h4 className="text-lg font-black">Passenger {index + 1}</h4>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm font-bold text-white/80">
+                    Title
+                    <select
+                      value={passenger.title}
+                      onChange={(event) =>
+                        updatePassengerForm(
+                          passenger.id,
+                          "title",
+                          event.target.value
+                        )
+                      }
+                      className="mt-2 w-full rounded-xl border border-white/15 bg-slate-950/70 p-3 text-white"
+                    >
+                      <option value="mr">Mr</option>
+                      <option value="mrs">Mrs</option>
+                      <option value="ms">Ms</option>
+                      <option value="miss">Miss</option>
+                      <option value="dr">Dr</option>
+                    </select>
+                  </label>
+
+                  <label className="text-sm font-bold text-white/80">
+                    Gender
+                    <select
+                      value={passenger.gender}
+                      onChange={(event) =>
+                        updatePassengerForm(
+                          passenger.id,
+                          "gender",
+                          event.target.value
+                        )
+                      }
+                      className="mt-2 w-full rounded-xl border border-white/15 bg-slate-950/70 p-3 text-white"
+                    >
+                      <option value="m">Male</option>
+                      <option value="f">Female</option>
+                    </select>
+                  </label>
+
+                  <label className="text-sm font-bold text-white/80">
+                    Legal first name
+                    <input
+                      value={passenger.givenName}
+                      onChange={(event) =>
+                        updatePassengerForm(
+                          passenger.id,
+                          "givenName",
+                          event.target.value
+                        )
+                      }
+                      className="mt-2 w-full rounded-xl border border-white/15 bg-slate-950/70 p-3 text-white"
+                    />
+                  </label>
+
+                  <label className="text-sm font-bold text-white/80">
+                    Legal last name
+                    <input
+                      value={passenger.familyName}
+                      onChange={(event) =>
+                        updatePassengerForm(
+                          passenger.id,
+                          "familyName",
+                          event.target.value
+                        )
+                      }
+                      className="mt-2 w-full rounded-xl border border-white/15 bg-slate-950/70 p-3 text-white"
+                    />
+                  </label>
+
+                  <label className="text-sm font-bold text-white/80">
+                    Date of birth
+                    <input
+                      type="date"
+                      value={passenger.bornOn}
+                      onChange={(event) =>
+                        updatePassengerForm(
+                          passenger.id,
+                          "bornOn",
+                          event.target.value
+                        )
+                      }
+                      className="mt-2 w-full rounded-xl border border-white/15 bg-slate-950/70 p-3 text-white"
+                    />
+                  </label>
+
+                  <label className="text-sm font-bold text-white/80">
+                    Passenger email
+                    <input
+                      type="email"
+                      value={passenger.email}
+                      onChange={(event) =>
+                        updatePassengerForm(
+                          passenger.id,
+                          "email",
+                          event.target.value
+                        )
+                      }
+                      className="mt-2 w-full rounded-xl border border-white/15 bg-slate-950/70 p-3 text-white"
+                    />
+                  </label>
+
+                  <label className="text-sm font-bold text-white/80 sm:col-span-2">
+                    Passenger phone number
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      value={passenger.phoneNumber}
+                      onChange={(event) =>
+                        updatePassengerForm(
+                          passenger.id,
+                          "phoneNumber",
+                          event.target.value
+                        )
+                      }
+                      onBlur={(event) =>
+                        updatePassengerForm(
+                          passenger.id,
+                          "phoneNumber",
+                          formatPhoneForDisplay(event.target.value)
+                        )
+                      }
+                      placeholder="(360) 555-1234"
+                      className="mt-2 w-full rounded-xl border border-white/15 bg-slate-950/70 p-3 text-white"
+                    />
+                    <span className="mt-2 block text-xs font-medium text-white/45">
+                      Enter it normally. TrippinDays formats it automatically for the airline.
+                    </span>
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm leading-6 text-amber-100/85">
+            TEST ONLY: passenger details are sent to Duffel to create this test order. Do not use real passport numbers or payment-card details here.
+          </div>
+
+          {checkoutError && (
+            <p className="mt-4 rounded-xl border border-red-400/25 bg-red-500/10 p-3 text-sm font-bold text-red-100">
+              {checkoutError}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={() => void createTestFlightOrder()}
+            disabled={orderLoading}
+            className="mt-5 w-full rounded-xl bg-emerald-500 px-5 py-4 font-black text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {orderLoading ? "Creating Duffel Test Booking..." : "Create TEST Booking →"}
+          </button>
+        </>
+      )}
+    </div>
   </div>
 )}
 
@@ -2192,17 +3989,28 @@ function InfoCard({ label, value }: { label: string; value: string }) {
 
 function LoadingPanel() {
   return (
-    <section className="rounded-3xl border border-sky-400/20 bg-sky-500/10 p-10 text-center">
-      <div className="animate-bounce text-7xl">🧭</div>
-      <h1 className="mt-5 text-4xl font-black">Finding Your Best Adventure</h1>
+    <section className="flex min-h-[78vh] items-center justify-center py-8 text-center">
+      <div className="w-full max-w-xl rounded-3xl border border-white/20 bg-slate-950/45 p-8 shadow-2xl backdrop-blur-sm sm:p-10">
+        <div className="animate-bounce text-7xl drop-shadow-lg">🧭</div>
 
-      <div className="mx-auto mt-8 max-w-md space-y-3 text-left text-lg">
-        <p>🧠 Understanding your request</p>
-        <p>📍 Comparing destinations</p>
-        <p>💰 Matching your budget</p>
-        <p>🚗 Estimating the drive</p>
-        <p>🌤️ Checking live weather</p>
-        <p>🎵 Building RoadTunes suggestions</p>
+        <h1 className="mt-5 text-3xl font-black text-white drop-shadow-lg sm:text-4xl">
+          Finding Your Best Adventure
+        </h1>
+
+        <p className="mt-3 text-base font-semibold text-white/85 sm:text-lg">
+          TrippinDays is building your adventure...
+        </p>
+
+        <div className="mx-auto mt-8 max-w-md space-y-3 text-left text-base font-semibold text-white sm:text-lg">
+          <p>🧠 Understanding your request</p>
+          <p>📍 Comparing destinations</p>
+          <p>💰 Matching your budget</p>
+          <p>🚗 Estimating the drive</p>
+          <p>🌤️ Checking live weather</p>
+          <p>🎵 Building RoadTunes suggestions</p>
+        </div>
+
+        <div className="mx-auto mt-8 h-11 w-11 animate-spin rounded-full border-4 border-white/30 border-t-white" />
       </div>
     </section>
   );

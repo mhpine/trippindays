@@ -13,14 +13,6 @@ type AdventureOption = {
   reason: string;
 };
 
-type DetourStop = {
-  name: string;
-  area: string;
-  detourTime: string;
-  detourMiles: string;
-  reason: string;
-};
-
 type GeminiTrip = {
   title: string;
   selectedDestination: string;
@@ -35,7 +27,6 @@ type GeminiTrip = {
     artist: string;
     reason: string;
   }[];
-  detourStops?: DetourStop[];
   plan: string;
   budgetBreakdown?: {
   fuel: number;
@@ -78,6 +69,116 @@ alerts: string[];
 
 function normalizeName(value: string) {
   return value.trim().toLowerCase();
+}
+
+type GoogleRouteLeg = {
+  distanceMiles: number;
+  durationMinutes: number;
+};
+
+type GoogleRoundTripRoute = {
+  outbound: GoogleRouteLeg;
+  return: GoogleRouteLeg;
+  roundTripMiles: number;
+  roundTripMinutes: number;
+};
+
+function parseGoogleDurationSeconds(value: unknown): number {
+  if (typeof value !== "string") return 0;
+  const match = value.match(/^([\d.]+)s$/);
+  return match ? Number(match[1]) : 0;
+}
+
+async function getGoogleDrivingRoute(
+  origin: string,
+  destination: string
+): Promise<GoogleRouteLeg | null> {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+
+  if (!apiKey || !origin.trim() || !destination.trim()) {
+    return null;
+  }
+
+  const response = await fetch(
+    "https://routes.googleapis.com/directions/v2:computeRoutes",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask":
+          "routes.distanceMeters,routes.duration,routes.staticDuration",
+      },
+      body: JSON.stringify({
+        origin: {
+          address: origin.trim(),
+        },
+        destination: {
+          address: destination.trim(),
+        },
+        travelMode: "DRIVE",
+        routingPreference: "TRAFFIC_AWARE",
+        computeAlternativeRoutes: false,
+        routeModifiers: {
+          avoidTolls: false,
+          avoidHighways: false,
+          avoidFerries: false,
+        },
+        languageCode: "en-US",
+        units: "IMPERIAL",
+      }),
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(
+      "GOOGLE ROUTES ERROR:",
+      response.status,
+      errorText.slice(0, 1000)
+    );
+    return null;
+  }
+
+  const data = await response.json();
+  const route = data?.routes?.[0];
+
+  if (!route || typeof route.distanceMeters !== "number") {
+    console.error("GOOGLE ROUTES: no usable route returned.", data);
+    return null;
+  }
+
+  const distanceMiles = route.distanceMeters / 1609.344;
+  const durationSeconds =
+    parseGoogleDurationSeconds(route.duration) ||
+    parseGoogleDurationSeconds(route.staticDuration);
+
+  return {
+    distanceMiles,
+    durationMinutes: durationSeconds / 60,
+  };
+}
+
+async function getGoogleRoundTripRoute(
+  origin: string,
+  destination: string
+): Promise<GoogleRoundTripRoute | null> {
+  const [outbound, returnLeg] = await Promise.all([
+    getGoogleDrivingRoute(origin, destination),
+    getGoogleDrivingRoute(destination, origin),
+  ]);
+
+  if (!outbound || !returnLeg) {
+    return null;
+  }
+
+  return {
+    outbound,
+    return: returnLeg,
+    roundTripMiles: outbound.distanceMiles + returnLeg.distanceMiles,
+    roundTripMinutes: outbound.durationMinutes + returnLeg.durationMinutes,
+  };
 }
 
 function removeDuplicateAdventures(
@@ -300,6 +401,15 @@ if (
 
     const normalizedTripRequest = tripRequest.toLowerCase();
 
+    const startingLocation =
+      tripRequest.match(/^Starting Location:\s*(.+)$/im)?.[1]?.trim() || "";
+
+    const transportationPreference =
+      tripRequest.match(/^Transportation Preference:\s*(.+)$/im)?.[1]?.trim() ||
+      tripRequest.match(/^Travel Mode:\s*(.+)$/im)?.[1]?.trim() ||
+      "";
+
+
     const timeAvailableDaysMatch = tripRequest.match(
       /Time Available:\s*(\d+)\s*Days?\b/i
     );
@@ -352,26 +462,18 @@ ROUND-TRIP PHASE STRUCTURE:
 - Once the return phase starts, each major driving segment must make geographic progress toward home.
 - Do not overshoot the original starting location and backtrack.
 
-EPIC FEASIBILITY MATH — AUTHORITATIVE:
+EPIC FEASIBILITY MATH:
 - Maximum Daily Driving is ${maximumDailyDrivingHours} hour${maximumDailyDrivingHours === 1 ? "" : "s"} of ACTUAL driving time per day for this request.
 - Meals, fuel, sightseeing, attractions, hikes, and sleep do NOT count against the driving-hour ceiling.
-- Estimate the most direct practical ONE-WAY driving time between the exact original Starting Location and the requested destination.
-- Do NOT use round-trip hours as if they must fit into one day.
+- Estimate ONE-WAY driving time between the original starting location and requested destination.
 - Required outbound driving days = CEILING(one-way driving hours / ${maximumDailyDrivingHours}).
-- Required return driving days = CEILING(return-route driving hours / ${maximumDailyDrivingHours}).
+- Required return driving days = the same calculation for the logical return route.
 - Minimum pure travel days = outbound driving days + return driving days.
-- The trip is mathematically feasible when minimum pure travel days is LESS THAN OR EQUAL TO ${requestedCalendarDays}.
-- Any calendar days beyond the minimum pure travel days are destination/adventure days.
-- If the one-way drive is less than or equal to ${maximumDailyDrivingHours} hours, DRIVE DIRECTLY TO THE REQUESTED DESTINATION ON DAY 1. Do NOT invent an intermediate overnight stop.
-- If the return drive is less than or equal to ${maximumDailyDrivingHours} hours, DRIVE DIRECTLY HOME ON THE FINAL DAY. Do NOT invent an intermediate return overnight stop.
-- Example: 7.5 hours one way with an 8-hour daily limit = 1 outbound day + 1 return day. A 5-day trip is feasible and leaves the middle days for the destination.
-- Example: 12 hours one way with a 6-hour daily limit = 2 outbound days + 2 return days. A 5-day trip is feasible and leaves 1 calendar day for destination-focused time.
-- Do NOT call a trip impractical merely because it is a long drive.
-- Do NOT call it impractical merely because meals, fuel, or rest stops make the elapsed clock time longer than the driving time. Schedule an earlier departure instead.
-- Only call the trip impractical when CEILING(outbound one-way driving hours / ${maximumDailyDrivingHours}) + CEILING(return driving hours / ${maximumDailyDrivingHours}) is GREATER THAN ${requestedCalendarDays}.
-- When the driving-time estimate is close to a daily threshold, do not reject the trip solely because of uncertain estimated minutes. Build the itinerary conservatively and tell the traveler to verify live routing before departure.
-- If live routing data was not supplied, driving hours are estimates. Never present an AI driving-time estimate as verified live navigation data.
-- If mathematically impractical, do not extend the trip. State the constraint clearly.
+- Any remaining calendar days may be used for destination time and activities.
+- Do NOT call a trip impractical merely because the destination cannot be reached in one day.
+- Example: about 12 hours one way with a 6-hour daily limit requires 2 outbound days + 2 return days. A 5-day trip is practical and leaves 1 day for the destination.
+- Only call the trip impractical when the outbound AND return driving truly cannot fit inside ${requestedCalendarDays} calendar days while respecting the ${maximumDailyDrivingHours}-hour daily driving ceiling and the final-day return-home deadline.
+- If impractical, do not extend the trip. State the constraint clearly.
 `
         : "";
 
@@ -453,8 +555,7 @@ HARD DRIVING LIMIT:
 - If the traveler selected a lower Maximum Daily Driving limit, that lower limit is the hard daily ceiling.
 - Driving time means time behind the wheel only.
 - Meals, fuel stops, sightseeing, attractions, hikes, and rest stops are additional time.
-- Choose a logical overnight stop before the daily driving limit is exceeded ONLY when the remaining drive cannot fit inside that day's selected Maximum Daily Driving limit.
-- If the requested destination can be reached within the selected Maximum Daily Driving limit, go directly to the destination that day and make the destination the overnight location. Do NOT add an unnecessary intermediate overnight.
+- Choose a logical overnight stop before the daily driving limit is exceeded.
 - Apply the same driving limit to BOTH outbound and return-trip days.
 - The selected number of calendar days covers the ENTIRE round trip: outbound travel, destination time, and return travel.
 - Do NOT assume a trip is impractical because the destination requires more than one driving day each way.
@@ -501,7 +602,6 @@ MANDATORY RETURN-TRIP STRUCTURE:
 - Every return day ending away from home must contain a TONIGHT IN [CITY / AREA] lodging section.
 - The original Starting Location is the HARD FINAL ENDPOINT of the return route.
 - Before adding any return-trip overnight stop, estimate whether the original Starting Location can be reached within the traveler's selected Maximum Daily Driving limit. If it can, continue directly home and DO NOT add another overnight stop.
-- On the FINAL DAY, if the estimated actual driving time home is within the selected Maximum Daily Driving limit, schedule an early enough departure to arrive home by 5:00 PM rather than declaring the trip infeasible.
 - Never choose an overnight city, attraction, restaurant, fuel stop, or scenic stop that requires driving past the original Starting Location and then backtracking to reach home.
 - On the return trip, each major route segment must make reasonable geographic progress toward the original Starting Location. Do not knowingly send the traveler farther away from home merely to create another itinerary day or lodging stop.
 - Return-trip overnight cities must be on or reasonably near a logical route toward the original Starting Location.
@@ -530,8 +630,7 @@ ROUND-TRIP TIMEFRAME — HARD RULE:
 - NEVER add an extra travel day or overnight stay merely because the planned destination is too far away.
 - NEVER finish the itinerary at the destination, hotel, attraction, overnight city, or another nearby city.
 - NEVER substitute a nearby major city for the traveler's original Starting Location.
-- If necessary, shorten activities, remove detours, leave earlier, or choose closer overnight stops so the traveler can return home by 5:00 PM on the final day.
-- For Epic Road Trip mode, NEVER replace the traveler's specifically requested destination merely to make the schedule easier. First apply the authoritative feasibility math and split the drive across days only when required by the selected Maximum Daily Driving limit.
+- If necessary, shorten activities, remove detours, leave earlier, choose closer overnight stops, or choose a closer destination so the traveler can return home by 5:00 PM on the final day.
 - If the specifically requested destination cannot realistically be completed as a round trip within the selected timeframe and driving limits, clearly say that it is not practical within those constraints instead of silently adding days or nights.
 - For N requested nights, use exactly N overnight stays. The following day is the final return-home day and must end at the original Starting Location by 5:00 PM.
 Every TrippinDays itinerary MUST include the user's main request PLUS
@@ -573,6 +672,21 @@ WEEKEND MODE — HARD CALENDAR RULE:
 - Include major activities, viewpoints, short walks, attractions,
   photography opportunities, and other requested experiences.
 - Include estimated costs throughout the day.
+DETOUR-WORTHY STOPS
+
+- Include 6 REAL worthwhile stops that are reasonably close to the trip route.
+- These should be scenic overlooks, unusual roadside attractions, historic places, local landmarks, short nature stops, hidden gems, or other places genuinely worth leaving the main route for.
+- Do NOT invent places.
+- Keep detours practical for the user's available time and budget.
+- Do not send the traveler backward or far away from the logical route.
+- Prefer stops that add roughly 5 to 30 minutes of extra driving when possible.
+- Do not repeat attractions already included in the main itinerary.
+
+Use EXACTLY this format for each stop:
+Name | City / Area | Detour Time | Detour Miles | Why it is worth the detour
+
+Example:
+Tumwater Falls | Tumwater, WA | 10 minutes | 3 miles | Short waterfall walk and scenic historic park.
 1B. DESTINATION TYPES
 
 When appropriate for the user's interests, actively consider real:
@@ -594,31 +708,7 @@ Never invent a trail or attraction.
 
 When a hiking trail is included, recommend checking current trail
 conditions and use AllTrails for detailed trail maps and navigation.
-
-2. DETOUR-WORTHY STOPS FOR LONGER ROAD TRIPS
-
-For a road trip that is approximately 100+ total driving miles OR has roughly 2+ hours of meaningful highway/road travel, include a clearly labeled section in this exact format:
-
-DETOUR-WORTHY STOPS:
-- Real stop name | City / area | +estimated detour time | +estimated detour miles | Why: one short reason it is worth the detour
-
-Include 3 to 5 stops maximum.
-- Search the FULL route corridor, not only the final destination area. When practical, spread the choices across the beginning, middle, and later portions of the drive.
-- Scale the acceptable off-route distance to the length of the trip:
-  * About 2 to 3 hours of driving: prefer stops within roughly 15 miles off route.
-  * About 3 to 5 hours of driving: allow up to roughly 25 miles off route.
-  * About 5 to 8 hours of driving: allow up to roughly 40 miles off route.
-  * Epic or multi-day road trips: allow up to roughly 50 miles off route when the stop is genuinely exceptional.
-- Prefer closer, easier detours first. Use the upper mileage allowance only for standout stops that justify the extra drive.
-- Favor scenic overlooks, waterfalls, unusual roadside attractions, historic sites, state or national parks, famous local food stops, quirky small towns, viewpoints, and short hikes.
-- Keep the diversion practical for the traveler's available time and budget.
-- Do not include a detour that would break the final return-home deadline or daily driving limit.
-- Use real places only when reasonably confident they exist. Never invent an attraction or business.
-- Detour time and mileage are estimates only; do not imply live routing or traffic data.
-- If the trip is shorter than about 100 total miles and under about 2 hours of meaningful road travel, OMIT this section entirely.
-- Do not repeat these detour stops elsewhere unless they are actually scheduled into the itinerary.
-
-3. RESTAURANTS
+2. RESTAURANTS
 
 Include a clearly labeled section:
 
@@ -635,7 +725,7 @@ RESTAURANTS
 - If you cannot confidently identify a specific restaurant, provide a
   practical Maps-search recommendation instead of inventing one.
 
-4. GAS / FUEL
+3. GAS / FUEL
 
 Include a clearly labeled section:
 
@@ -650,7 +740,7 @@ GAS / FUEL
 - If a specific station cannot be confidently identified, name the town
   or highway area where the traveler should refuel.
 
-5. ROAD CONDITIONS
+4. ROAD CONDITIONS
 
 Include a clearly labeled section:
 
@@ -666,7 +756,7 @@ ROAD CONDITIONS
 
 "Live road conditions and closures must be verified before departure."
 
-6. LIVE WEATHER
+5. LIVE WEATHER
 
 Include the following exact placeholder on its own line:
 
@@ -677,7 +767,7 @@ Do NOT invent current weather in the itinerary.
 TrippinDays will replace this placeholder with verified live weather
 after the AI trip is generated.
 
-7. NEAREST HOSPITAL
+6. NEAREST HOSPITAL
 
 Include a clearly labeled section:
 
@@ -694,7 +784,7 @@ NEAREST HOSPITAL
   should locate the nearest emergency facility in Maps before departure
   rather than inventing one.
 
-8. OVERNIGHT LODGING
+7. OVERNIGHT LODGING
 
 If the itinerary spans more than one calendar day OR requires the traveler to sleep away from the original starting location, lodging is MANDATORY for every night away from home.
 
@@ -751,7 +841,7 @@ Current lodging availability and reservation details must be verified before boo
 
 Do NOT add an overnight lodging section for the final day if the traveler returns to the original starting location that day.
 
-9. CHECK BEFORE LEAVING
+8. CHECK BEFORE LEAVING
 
 Every itinerary MUST END with a clearly labeled section:
 
@@ -867,15 +957,6 @@ Use exactly this structure:
     "reason": "One short sentence explaining why this song fits the trip"
   }
 ],
-"detourStops": [
-  {
-    "name": "Real stop name",
-    "area": "City / area",
-    "detourTime": "+12 min",
-    "detourMiles": "+7 mi",
-    "reason": "One short reason this stop is worth the detour"
-  }
-],
 "roundTripMiles": 123,
   "plan": "A detailed chronological itinerary containing the required TrippinDays sections, including [[LIVE_WEATHER]] exactly once."
 }
@@ -901,8 +982,6 @@ Important:
 - The user's requested experiences remain the main focus.
 - Restaurants, Gas / Fuel, Road Conditions, Live Weather,
   Nearest Hospital, and Check Before Leaving are mandatory.
-- For longer road trips (about 100+ total miles or 2+ hours of meaningful road travel), DETOUR-WORTHY STOPS is also required.
-- For those longer road trips, detourStops must contain 3 to 5 real route-aware stops using the exact structured fields shown above. For shorter trips, return detourStops as an empty array.
 - Include [[LIVE_WEATHER]] exactly once in plan.
 - musicSuggestions must contain exactly 3 real, widely known songs with real artist names that fit the mood, destination, or style of the trip. Do not invent songs or artists.
         `;
@@ -995,11 +1074,7 @@ CRITICAL CORRECTION — YOUR PREVIOUS OUTPUT FAILED THE HARD TRIP LENGTH CHECK:
 - Do not remove lodging. Do not add extra lodging.
 - Rebuild the COMPLETE JSON response from scratch so the itinerary satisfies these requirements.
 - Keep the requested destination unless the round trip is mathematically impossible under the daily driving ceiling.
-- Feasibility formula: CEILING(outbound one-way driving hours / ${maximumDailyDrivingHours}) + CEILING(return driving hours / ${maximumDailyDrivingHours}) <= ${requestedCalendarDays}.
-- If one-way driving time is <= ${maximumDailyDrivingHours} hours, Day 1 goes directly to the requested destination with no unnecessary intermediate overnight.
-- If final-day driving time home is <= ${maximumDailyDrivingHours} hours, the final day goes directly home with an early enough departure to arrive by 5:00 PM.
-- Example: 7.5 hours one way with an 8-hour daily ceiling is 1 driving day each way, so a 5-day round trip is clearly feasible.
-- Remember: a roughly 12-hour one-way trip with a 6-hour daily ceiling takes 2 driving days each way, so a 5-day round trip is practical with 1 destination-focused calendar day.
+- Remember: a roughly 12-hour one-way trip with a 6-hour daily driving ceiling takes 2 driving days each way, so a 5-day round trip is practical with 1 destination day.
 
 Return ONLY valid JSON in the exact structure already specified.`;
 
@@ -1056,61 +1131,6 @@ Return ONLY valid JSON in the exact structure already specified.`;
       );
     }
 
-    // Ensure long road trips always have structured detour data for the Trip page.
-    if (
-      typeof trip.roundTripMiles === "number" &&
-      trip.roundTripMiles >= 100 &&
-      (!Array.isArray(trip.detourStops) || trip.detourStops.length === 0)
-    ) {
-      try {
-        const detourResponse = await openai.responses.create({
-          model: "gpt-5.6-luna",
-          reasoning: { effort: "none" },
-          text: { verbosity: "low" },
-          input: `Return ONLY valid JSON with this shape:
-{
-  "detourStops": [
-    {
-      "name": "Real stop name",
-      "area": "City / area",
-      "detourTime": "+12 min",
-      "detourMiles": "+7 mi",
-      "reason": "Why it is worth the detour"
-    }
-  ]
-}
-
-Choose 3 to 5 real detour-worthy stops distributed along the full road-trip route, not clustered only near the destination. Favor geographic spread across the early, middle, and later portions of the route when practical. Scale acceptable off-route distance with trip length: roughly 15 miles for 2-3 hour drives, 25 miles for 3-5 hour drives, 40 miles for 5-8 hour drives, and up to 50 miles for Epic or multi-day road trips when a stop is genuinely exceptional. Prefer closer detours first and use the upper range only for standout places. Favor scenic overlooks, waterfalls, unusual roadside attractions, historic sites, state/national parks, notable local food stops, quirky small towns, viewpoints, and short hikes. Never invent a place. Keep detours practical and do not break the itinerary's driving limits or return-home deadline. Detour time and mileage are estimates.
-
-Starting request:
-${tripRequest}
-
-Selected destination: ${trip.selectedDestination}
-Estimated round-trip miles: ${trip.roundTripMiles}
-
-Planned itinerary:
-${trip.plan}`
-        });
-
-        if (detourResponse.output_text) {
-          const detourFirstBrace = detourResponse.output_text.indexOf("{");
-          const detourLastBrace = detourResponse.output_text.lastIndexOf("}");
-          if (detourFirstBrace !== -1 && detourLastBrace !== -1) {
-            const detourJson = detourResponse.output_text
-              .slice(detourFirstBrace, detourLastBrace + 1)
-              .replace(/,\s*}/g, "}")
-              .replace(/,\s*]/g, "]");
-            const parsedDetours = JSON.parse(detourJson) as { detourStops?: DetourStop[] };
-            if (Array.isArray(parsedDetours.detourStops)) {
-              trip.detourStops = parsedDetours.detourStops.slice(0, 5);
-            }
-          }
-        }
-      } catch (detourError) {
-        console.error("Detour stop fallback failed:", detourError);
-      }
-    }
-
     const deduplicated =
       removeDuplicateAdventures(
         trip.adventures
@@ -1120,6 +1140,42 @@ ${trip.plan}`
       isSpecificAdventure || isEpicRoadTrip
         ? deduplicated.slice(0, 1)
         : deduplicated.slice(0, 6);
+
+    /*
+      VERIFIED ROUTING:
+      Google Maps Routes API is the source of truth for driving mileage.
+      The AI-generated roundTripMiles value is never used when Google returns
+      a valid driving route.
+    */
+    const shouldVerifyDrivingRoute =
+      Boolean(startingLocation) &&
+      Boolean(trip.selectedDestination) &&
+      (
+        isEpicRoadTrip ||
+        !transportationPreference ||
+        /drive/i.test(transportationPreference)
+      );
+
+    const verifiedRoute = shouldVerifyDrivingRoute
+      ? await getGoogleRoundTripRoute(
+          startingLocation,
+          trip.selectedDestination
+        )
+      : null;
+
+    if (isEpicRoadTrip && shouldVerifyDrivingRoute && !verifiedRoute) {
+      throw new Error(
+        "TrippinDays could not verify this road trip with Google Maps. Check that GOOGLE_MAPS_API_KEY is configured and the Routes API is enabled."
+      );
+    }
+
+    const verifiedRoundTripMiles = verifiedRoute
+      ? Math.round(verifiedRoute.roundTripMiles)
+      : trip.roundTripMiles;
+
+    const verifiedDrivingMinutes = verifiedRoute
+      ? Math.round(verifiedRoute.roundTripMinutes)
+      : null;
 
     let liveChecks: LiveChecks | null =
       null;
@@ -1302,7 +1358,16 @@ alerts: [],
       destination:
         trip.selectedDestination,
         imageSearchQuery: trip.imageSearchQuery || "",
-roundTripMiles: trip.roundTripMiles,
+roundTripMiles: verifiedRoundTripMiles,
+routeVerified: Boolean(verifiedRoute),
+routeSource: verifiedRoute ? "Google Maps Routes API" : "AI estimate",
+verifiedDrivingMinutes,
+verifiedOutboundMiles: verifiedRoute
+  ? Math.round(verifiedRoute.outbound.distanceMiles)
+  : null,
+verifiedReturnMiles: verifiedRoute
+  ? Math.round(verifiedRoute.return.distanceMiles)
+  : null,
 budgetBreakdown: trip.budgetBreakdown,
       summary: trip.summary || "",
 
@@ -1316,9 +1381,6 @@ budgetBreakdown: trip.budgetBreakdown,
 musicSuggestions: Array.isArray(trip.musicSuggestions)
   ? trip.musicSuggestions
   : [],
-      detourStops: Array.isArray(trip.detourStops)
-        ? trip.detourStops.slice(0, 5)
-        : [],
       plan: finalPlan,
 
       liveChecks,

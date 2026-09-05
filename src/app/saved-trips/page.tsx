@@ -1,2480 +1,358 @@
 "use client";
 
-
-
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { User } from "@supabase/supabase-js";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-
-type AdventureOption = {
-  name: string;
-  region: string;
-  emoji: string; 
-  matchScore: number;
-  estimatedDriveTime: string;
-  estimatedDistance: string;
-  estimatedCost: number;
-  reason: string;
+type SavedTrip = {
+  id: string;
+  title: string | null;
+  starting_location: string | null;
+  destination: string | null;
+  image_url: string | null;
+  budget: number | null;
+  time_available: string | null;
+  travelers: string | null;
+  trip_request: string | null;
+  itinerary: string | null;
+  status: string | null;
+  created_at: string | null;
+  spendingTotal?: number;
 };
 
-type LiveChecks = {
-  checkedAt: string;
-  location: string;
-  latitude: number;
-  longitude: number;
-  temperature: number | null;
-  feelsLike: number | null;
-  windSpeed: number | null;
-  precipitation: number | null;
-  weatherCode: number | null;
-  high: number | null;
-  low: number | null;
-  rainChance: number | null;
-  uvIndex: number | null;
-sunset: string | null;
-windGusts: number | null;
-moonPhase: string | null;
-alerts: string[];
-};
+function getTripStartDate(tripRequest: string | null): string | null {
+  if (!tripRequest) return null;
 
-type Section = {
-  title: string;
-  emoji: string;
-  lines: string[];
-  navigationQuery: string | null;
+  const match = tripRequest.match(/^Start Date:\s*(.+)$/im);
+  if (!match?.[1]) return null;
 
-  researchUrl?: string | null;
-  mapsUrl?: string | null;
-  trailUrl?: string | null;
-  ticketUrl?: string | null;
-};
-type BudgetBreakdown = {
-  fuel: number;
-  food: number;
-  activities: number;
-  parking: number;
-  lodging: number;
-  other: number;
-  total: number;
-};
+  const raw = match[1].trim();
+  const parsed = new Date(`${raw}T12:00:00`);
 
-type OvernightStop = {
-  stage: string;
-  location: string;
-  dayNumber: number | null;
-  checkIn: string;
-  checkOut: string;
-};
+  return Number.isNaN(parsed.getTime()) ? null : raw;
+}
 
-type SelectedLodging = {
-  name: string;
-  address: string;
-  kind: "Hotels & Motels" | "Campgrounds & RV" | "Cabins & Lodges";
-};
-export default function TripPage() {
-  const [request, setRequest] = useState("");
- const [aiPlan, setAiPlan] = useState ("");
-  const [tripTitle, setTripTitle] = useState("");
-  const [destination, setDestination] = useState("");
-  const [imageSearchQuery, setImageSearchQuery] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-const [photographer, setPhotographer] = useState("");
-const [photographerUrl, setPhotographerUrl] = useState("");
-const [pexelsUrl, setPexelsUrl] = useState("");
-  const [summary, setSummary] = useState("");
-  const [roundTripMiles, setRoundTripMiles] = useState<number | null>(null);
-  const [budgetBreakdown, setBudgetBreakdown] = useState<BudgetBreakdown | null>(null);
-  const budgetItems = budgetBreakdown
-  ? [
-      { label: "Fuel", value: budgetBreakdown.fuel },
-      { label: "Food", value: budgetBreakdown.food },
-      { label: "Activities", value: budgetBreakdown.activities },
-      { label: "Parking", value: budgetBreakdown.parking },
-      { label: "Lodging", value: budgetBreakdown.lodging },
-      { label: "Other", value: budgetBreakdown.other },
-    ]
-  : [];
-  const [whySelected, setWhySelected] = useState<string[]>([]); 
-  const [musicSuggestions, setMusicSuggestions] = useState<
-  { title: string; artist: string; reason: string }[]
->([]);
-  const [adventures, setAdventures] = useState<AdventureOption[]>([]);
-  const [liveChecks, setLiveChecks] = useState<LiveChecks | null>(null);
-  const [nearbyEvents, setNearbyEvents] = useState<any[]>([]);
-const [eventsLoading, setEventsLoading] = useState(false);
+function getTripStatus(startDate: string | null): "Upcoming" | "Completed" | "Saved" {
+  if (!startDate) return "Saved";
+
+  const tripDay = new Date(`${startDate}T23:59:59`);
+  const today = new Date();
+
+  if (Number.isNaN(tripDay.getTime())) return "Saved";
+  return tripDay.getTime() >= today.getTime() ? "Upcoming" : "Completed";
+}
+
+function money(value: number | null | undefined) {
+  return `$${Math.max(0, Number(value) || 0).toFixed(2)}`;
+}
+
+export default function SavedTripsPage() {
+  const [trips, setTrips] = useState<SavedTrip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState("");
- const [isRemixing, setIsRemixing] = useState("");
-const [selectedRemixes, setSelectedRemixes] = useState<string[]>([]);
-const [remixCount, setRemixCount] = useState(0);
-const MAX_REMIXES = 2;
-  const [recentDestinations, setRecentDestinations] = useState<string[]>([]);
- 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-useEffect(() => {
-  if (!imageSearchQuery) return;
+  useEffect(() => {
+    void loadSavedTrips();
+  }, []);
 
-  async function loadPhoto() {
-    try {
-      const response = await fetch(
-        `/api/photo?query=${encodeURIComponent(imageSearchQuery)}`
-      );
+  async function loadSavedTrips() {
+    const supabase = createClient();
 
-      if (!response.ok) return;
-
-      const data = await response.json();
-
-      setImageUrl(data.imageUrl || "");
-      setPhotographer(data.photographer || "");
-      setPhotographerUrl(data.photographerUrl || "");
-      setPexelsUrl(data.pexelsUrl || "");
-    } catch (error) {
-      console.error("Photo load failed:", error);
-    }
-  }
-
-  void loadPhoto();
-}, [imageSearchQuery]);
-
-
-  function toggleRemix(type: string) {
-  setSelectedRemixes((current) =>
-    current.includes(type)
-      ? current.filter((item) => item !== type)
-      : [...current, type]
-  );
-}
-useEffect(() => {
-  const saved = localStorage.getItem("trippindays-recent-destinations");
-
-  if (saved) {
-    try {
-      setRecentDestinations(JSON.parse(saved));
-    } catch {
-      setRecentDestinations([]);
-    }
-  }
-}, []);
-  const started = useRef(false);
-const [user, setUser] = useState<User | null>(null);
-const [isPremium, setIsPremium] = useState(false);
-useEffect(() => {
-  const supabase = createClient();
-
- supabase.auth.getUser().then(async ({ data }) => {
-  const currentUser = data.user ?? null;
-  setUser(currentUser);
-
-  if (!currentUser) {
-    setIsPremium(false);
-    return;
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_premium")
-    .eq("id", currentUser.id)
-    .single();
-
-  setIsPremium(profile?.is_premium === true);
-});
-
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, session) => {
-    setUser(session?.user ?? null);
-  });
-
-  return () => {
-    subscription.unsubscribe();
-  };
-}, []);
-useEffect(() => {
-  const supabase = createClient();
-
-  async function checkPremium() {
-    if (!user) {
-      setIsPremium(false);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("is_premium")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (error) {
-      console.error("Premium check failed:", error);
-      setIsPremium(false);
-      return;
-    }
-
-    setIsPremium(data?.is_premium === true);
-  }
-
-  void checkPremium();
-}, [user]);
-useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  const savedTripId = params.get("savedTrip");
-
-  async function loadTripPage() {
-    // Opening a saved trip must display the exact itinerary that was saved.
-    // Do NOT send it back through /api/plan, because that would generate a
-    // different itinerary.
-    if (savedTripId) {
-      const supabase = createClient();
-
-      try {
-        setIsLoading(true);
-        setError("");
-
-        const { data: { user: currentUser }, error: userError } =
-          await supabase.auth.getUser();
-
-        if (userError || !currentUser) {
-          setError("Sign in to view your saved trip.");
-          return;
-        }
-
-        const { data: savedTrip, error: savedTripError } = await supabase
-          .from("trips")
-          .select(
-            "id, user_id, title, starting_location, destination, image_url, budget, time_available, travelers, trip_request, itinerary, status, created_at"
-          )
-          .eq("id", savedTripId)
-          .eq("user_id", currentUser.id)
-          .single();
-
-        if (savedTripError || !savedTrip) {
-          throw savedTripError || new Error("Saved trip not found.");
-        }
-
-        const savedRequest = savedTrip.trip_request || "";
-        setRequest(savedRequest);
-        setAiPlan(savedTrip.itinerary || "");
-        setTripTitle(savedTrip.title || "Your TrippinDays Adventure");
-        setDestination(savedTrip.destination || "");
-        setImageUrl(savedTrip.image_url || "");
-        setSummary("");
-        setRoundTripMiles(null);
-        setBudgetBreakdown(null);
-        setWhySelected([]);
-        setAdventures([]);
-        setMusicSuggestions([]);
-        setLiveChecks(null);
-        setSaveMessage("✅ Saved Trip");
-
-        // Keep the exact request handy if the traveler later chooses Regenerate.
-        if (savedRequest) {
-          localStorage.setItem("trippindays-request", savedRequest);
-        }
-        return;
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Could not load the saved trip."
-        );
-        return;
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    const saved =
-      params.get("request") ||
-      localStorage.getItem("trippindays-request") ||
-      "";
-
-    setRequest(saved);
-
-    const recentSaved =
-      localStorage.getItem("trippindays-recent-destinations");
-
-    let recentForRequest: string[] = [];
-    if (recentSaved) {
-      try {
-        recentForRequest = JSON.parse(recentSaved);
-      } catch {
-        recentForRequest = [];
-      }
-    }
-
-    if (!saved.trim()) {
-      setError("No trip request was found. Return home and create a trip.");
-      setIsLoading(false);
-      return;
-    }
-
-    void buildTrip(saved, recentForRequest);
-  }
-
-  void loadTripPage();
-}, []);
-
-  const start = getValue(request, "Starting Location");
-  const budget = getValue(request, "Budget") || "Not specified";
-  const time = getValue(request, "Time Available") || "Not specified";
-  const travelers = getValue(request, "Travelers") || "Not specified";
-  const startDate = getValue(request, "Start Date");
-
-  const sections = useMemo(
-    () => parsePlan(aiPlan, destination),
-    [aiPlan, destination]
-  );
-
-  const overnightStops = useMemo(
-    () => parseOvernightStops(aiPlan, startDate, destination),
-    [aiPlan, startDate, destination]
-  );
-useEffect(() => {
-  async function loadNearbyEvents() {
-    if (!liveChecks?.latitude || !liveChecks?.longitude) return;
-
-    try {
-      setEventsLoading(true);
-
-      const response = await fetch(
-        `/api/events-nearby?lat=${liveChecks.latitude}&lon=${liveChecks.longitude}&radius=75`
-      );
-
-      if (!response.ok) {
-        throw new Error("Could not load nearby events.");
-      }
-
-      const data = await response.json();
-console.log("NEARBY EVENT COUNT:", data.events?.length);
-console.log("NEARBY EVENT DATA:", data.events);
-      setNearbyEvents(Array.isArray(data.events) ? data.events : []);
-    } catch (error) {
-      console.error("Nearby events load failed:", error);
-      setNearbyEvents([]);
-    } finally {
-      setEventsLoading(false);
-    }
-  }
-
-  void loadNearbyEvents();
-}, [liveChecks]);
-  async function buildTrip(
-  savedRequest: string,
-  recentForRequest: string[]
-) {
     try {
       setIsLoading(true);
       setError("");
-      setSaveMessage("");
 
-      const response = await fetch("/api/plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-  tripRequest: savedRequest,
-  recentDestinations: recentForRequest,
-}),
-      });
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-      const data = await response.json();
-console.log("BUDGET BREAKDOWN:", data.budgetBreakdown);
-      if (!response.ok) {
-        throw new Error(data.error || "Could not build your trip.");
+      if (userError || !user) {
+        setError("Sign in to view your saved trips.");
+        setTrips([]);
+        return;
       }
 
-      setAiPlan(data.plan || "");
-      setTripTitle(data.title || "Your TrippinDays Adventure");
-      setDestination(data.destination || "");
-      setBudgetBreakdown(data.budgetBreakdown || null);
-      setImageSearchQuery(data.imageSearchQuery || "");
-     if (data.destination) {
-  setRecentDestinations((current) => {
-  const returnedDestinations = [
-    data.destination,
-    ...(Array.isArray(data.adventures)
-      ? data.adventures.map((item: AdventureOption) => item.name)
-      : []),
-  ].filter(Boolean);
+      const { data, error: tripsError } = await supabase
+        .from("trips")
+        .select(
+          "id, title, starting_location, destination, image_url, budget, time_available, travelers, trip_request, itinerary, status, created_at"
+        )
+        .eq("user_id", user.id)
+        .eq("status", "saved")
+        .order("created_at", { ascending: false });
 
-  const updated = [
-    ...returnedDestinations,
-    ...current.filter((item) => !returnedDestinations.includes(item)),
-  ].slice(0, 30);
+      if (tripsError) throw tripsError;
 
-  localStorage.setItem(
-    "trippindays-recent-destinations",
-    JSON.stringify(updated)
-  );
+      const loadedTrips = (data || []) as SavedTrip[];
+      const tripIds = loadedTrips.map((trip) => trip.id);
 
-  return updated;
-});
-}
-      setSummary(data.summary || "");
-      setRoundTripMiles(
-  typeof data.roundTripMiles === "number"
-    ? data.roundTripMiles
-    : null
-);
-      setWhySelected(Array.isArray(data.whySelected) ? data.whySelected : []);
-      setAdventures(Array.isArray(data.adventures) ? data.adventures : []);
-      setMusicSuggestions(
-  Array.isArray(data.musicSuggestions) ? data.musicSuggestions : []
-)
-      setLiveChecks(data.liveChecks || null);
+      let spendingByTrip: Record<string, number> = {};
+
+      if (tripIds.length > 0) {
+        const { data: expenses, error: expensesError } = await supabase
+          .from("trip_expenses")
+          .select("trip_id, amount, test_mode")
+          .eq("user_id", user.id)
+          .in("trip_id", tripIds);
+
+        if (expensesError) {
+          console.error("Could not load saved trip spending:", expensesError);
+        } else {
+          spendingByTrip = (expenses || []).reduce<Record<string, number>>(
+            (totals, expense: any) => {
+              if (expense.test_mode === true) return totals;
+              totals[expense.trip_id] =
+                (totals[expense.trip_id] || 0) + (Number(expense.amount) || 0);
+              return totals;
+            },
+            {}
+          );
+        }
+      }
+
+      setTrips(
+        loadedTrips.map((trip) => ({
+          ...trip,
+          spendingTotal: spendingByTrip[trip.id] || 0,
+        }))
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not build your trip.");
+      setError(
+        err instanceof Error ? err.message : "Could not load your saved trips."
+      );
+      setTrips([]);
     } finally {
       setIsLoading(false);
     }
   }
 
-  function openAdventure(adventure: AdventureOption) {
-    const nextRequest = `
-Starting Location: ${start || "Use the original starting location"}
-Budget: $${adventure.estimatedCost}
-Time Available: ${time}
-Travelers: ${travelers}
-
-Trip Request:
-Create a complete itinerary for ${adventure.name}, ${adventure.region}.
-Include realistic times, mileage, parking, fees, activities, food, weather, total cost, return time, and free RoadTunes song suggestions.
-
-Why selected:
-${adventure.reason}
-    `.trim();
-
-    localStorage.setItem("trippindays-request", nextRequest);
-    window.location.href = "/trip";
+  function openTrip(trip: SavedTrip) {
+    // The Trip page reads the saved row directly from Supabase by ID.
+    // That means it shows the SAME saved itinerary instead of generating a new one.
+    window.location.href = `/trip?savedTrip=${encodeURIComponent(trip.id)}`;
   }
 
-  async function saveTrip() {
-    if (isSaving) return;
+  async function deleteTrip(id: string) {
+    const okay = window.confirm("Remove this trip from Saved Trips?");
+    if (!okay) return;
 
-    setIsSaving(true);
-    setSaveMessage("");
+    const supabase = createClient();
 
     try {
-      const supabase = createClient();
+      setDeletingId(id);
       const {
-        data: { user: currentUser },
+        data: { user },
         error: userError,
       } = await supabase.auth.getUser();
 
-      if (userError || !currentUser) {
-        setSaveMessage("Create a free account to save your trip.");
+      if (userError || !user) {
+        setError("Sign in to manage your saved trips.");
         return;
       }
 
-      if (!aiPlan.trim()) {
-        setSaveMessage("Build your trip before saving it.");
-        return;
-      }
-
-      const rawBudget = getValue(request, "Budget");
-      const numericBudget = rawBudget
-        ? Number(rawBudget.replace(/[^0-9.]/g, ""))
-        : null;
-
-      const { data: savedTrip, error: insertError } = await supabase
+      const { error: deleteError } = await supabase
         .from("trips")
-        .insert({
-          user_id: currentUser.id,
-          title:
-            tripTitle.trim() ||
-            destination.trim() ||
-            "My TrippinDays Adventure",
-          starting_location: start || null,
-          destination: destination.trim() || null,
-          image_url: imageUrl || null,
-          budget:
-            numericBudget !== null && !Number.isNaN(numericBudget)
-              ? numericBudget
-              : null,
-          time_available: getValue(request, "Time Available") || null,
-          travelers: getValue(request, "Travelers") || null,
-          trip_request: request,
-          itinerary: aiPlan,
-          status: "saved",
-        })
-        .select("id")
-        .single();
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id);
 
-      if (insertError) throw insertError;
+      if (deleteError) throw deleteError;
 
-      setSaveMessage("✅ Trip Saved!");
-
-      // Remember the saved record so this exact itinerary can be reopened.
-      if (savedTrip?.id) {
-        localStorage.setItem("trippindays-last-saved-trip-id", savedTrip.id);
-      }
+      setTrips((current) => current.filter((trip) => trip.id !== id));
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "The trip could not be saved.";
-
-      if (message.toLowerCase().includes("auth session missing")) {
-        setSaveMessage("Create a free account to save your trip.");
-        return;
-      }
-
-      setSaveMessage(message);
+      setError(
+        err instanceof Error ? err.message : "Could not remove the saved trip."
+      );
     } finally {
-      setIsSaving(false);
+      setDeletingId(null);
     }
   }
 
- async function remixTrip(remixTypes: string[]) {
-  if (!aiPlan.trim()) {
-    setSaveMessage("Build a trip before remixing it.");
-    return;
-  }
-if (remixCount >= MAX_REMIXES) {
-  setSaveMessage(
-    "You’ve used all 3 remixes for this trip. Start a new trip to remix again."
-  );
-  return;
-}
- const remixInstructions: Record<string, string> = {
-  cheaper:
-    "Make this trip less expensive while keeping the best parts. Reduce unnecessary fuel, food, parking, admission, and activity costs. Favor free or low-cost alternatives.",
-
-  romantic:
-    "Remix this into a romantic adventure for a couple. Favor scenic stops, memorable meals, sunsets, intimate experiences, beautiful viewpoints, and relaxed pacing.",
-
-  hiddenGems:
-    "Remix this trip around hidden gems, unusual attractions, lesser-known viewpoints, quirky roadside stops, locally loved places, and experiences most tourists might miss.",
-
-  adventure:
-    "Make this trip more adventurous and exploratory. Add outdoor activities, interesting drives, unusual stops, hiking opportunities, and memorable experiences while staying realistic for the trip's time and budget.",
-
-  rainyDay:
-    "Remix this trip for rainy weather. Favor covered or indoor attractions, museums, scenic drives, interesting restaurants, indoor entertainment, and activities that still make the trip worthwhile in bad weather.",
-
-  familyFriendly:
-    "Remix this trip to be family friendly. Favor safe, fun, affordable activities suitable for families, reasonable driving times, accessible stops, food options, parks, attractions, and amusement parks when appropriate.",
-
-  petFriendly:
-    "Remix this trip to be pet friendly. Favor pet-friendly parks, trails, outdoor dining, lodging and attractions where appropriate. Avoid stops that generally prohibit pets and mention any likely leash or access restrictions.",
-
-  adrenalineJunkie:
-    "Remix this trip for an adrenaline seeker. Look for exciting experiences such as rafting, ziplining, climbing, mountain biking, off-road adventures, intense hikes, amusement rides, water sports, or other high-energy activities appropriate to the destination.",
-
-  nightlife:
-    "Remix this trip to include nightlife. Favor lively entertainment districts, live music, evening attractions, late-night food, comedy, dancing, bars or lounges when appropriate, and safe realistic evening transportation.",
-
-  theArts:
-    "Remix this trip around arts and culture. Favor museums, art galleries, live theater, architecture, public art, cultural districts, local music, artist communities, historic venues, and art festivals when available.",
-};
-
- const instruction =
-  remixTypes
-    .map((type) => remixInstructions[type])
-    .filter(Boolean)
-    .join("\n\n") || "Create a fresh variation of this trip.";
-
- try {
-  setIsRemixing(remixTypes.join(","));
-  setSaveMessage("");
-  setError("");
-    const remixRequest = `
-Starting Location: ${start || "Current location"}
-Budget: ${budget}
-Time Available: ${time}
-Travelers: ${travelers}
-
-Trip Request:
-Remix my existing TrippinDays adventure.
-
-Current Destination:
-${destination}
-
-REMIX STYLE:
-${instruction}
-
-IMPORTANT REMIX RULES:
-You MUST noticeably change this itinerary based on every selected remix style.
-Do not simply repeat the current itinerary.
-Replace or modify several stops, activities, meals, timing, or routing when appropriate.
-The new itinerary must clearly feel different while still respecting the original starting location, budget, travelers, and available time.
-
-CURRENT ITINERARY:
-${aiPlan}
-
-Important:
-Keep the trip realistic for the stated starting location, budget, travelers,
-and available time.
-
-Return a complete replacement itinerary with realistic driving times,
-distances, costs, food, activities, parking, weather considerations,
-return time, and RoadTunes music suggestions.
-    `.trim();
-
-    const response = await fetch("/api/plan", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        tripRequest: remixRequest,
-      }),
-    });
-
-    const data = await response.json();
-console.log("BUDGET BREAKDOWN:", data.budgetBreakdown);
-    if (!response.ok) {
-      throw new Error(data.error || "Could not remix your trip.");
-    }
-
-    setAiPlan(data.plan || aiPlan);
-    setTripTitle(data.title || tripTitle);
-    setDestination(data.destination || destination);
-    setSummary(data.summary || summary);
-setBudgetBreakdown(data.budgetBreakdown || budgetBreakdown);
-    setRoundTripMiles(
-      typeof data.roundTripMiles === "number"
-        ? data.roundTripMiles
-        : roundTripMiles
-    );
-
-    setWhySelected(
-      Array.isArray(data.whySelected)
-        ? data.whySelected
-        : whySelected
-    );
-
-    setAdventures(
-      Array.isArray(data.adventures)
-        ? data.adventures
-        : adventures
-    );
-
-    setMusicSuggestions(
-      Array.isArray(data.musicSuggestions)
-        ? data.musicSuggestions
-        : musicSuggestions
-    );
-
-    setLiveChecks(data.liveChecks || liveChecks);
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-setRemixCount((current) => current + 1);
-setSelectedRemixes([]);
-setSaveMessage("✨ Your trip has been remixed! Choose options to remix again.");
-  } catch (err) {
-
-    setSaveMessage(
-      err instanceof Error
-        ? err.message
-        : "Could not remix your trip."
-    );
-  } finally {
-    setIsRemixing("");
-  }
-}
-  async function shareTrip() {
-    try {
-      const text = [tripTitle, destination, summary].filter(Boolean).join("\n\n");
-
-      if (navigator.share) {
-        await navigator.share({
-          title: tripTitle,
-          text,
-          url: window.location.href,
-        });
-      } else {
-        await navigator.clipboard.writeText(`${text}\n\n${window.location.href}`);
-        setSaveMessage("Trip details copied to your clipboard.");
-      }
-    } catch {
-      setSaveMessage("Sharing was cancelled.");
-    }
-    
-  }
-  
-  function navigate(query = destination) {
-    if (!query.trim()) {
-      setSaveMessage("No destination is available for navigation.");
-      return;
-    }
-
-    const params = new URLSearchParams({
-      api: "1",
-      destination: query,
-      travelmode: "driving",
-      dir_action: "navigate",
-    });
-
-    // Leave origin blank so Google Maps uses the traveler's CURRENT location.
-    // This makes every TrippinDays itinerary and lodging navigation button
-    // guide the traveler from wherever they are at that moment.
-    window.location.href = `https://www.google.com/maps/dir/?${params.toString()}`;
-  }
-function openFoodNearby() {
-  const destination = liveChecks?.location || "";
-
-  const query = `restaurants near ${destination}`;
-
-  const url =
-    "https://www.google.com/maps/search/?" +
-    new URLSearchParams({
-      api: "1",
-      query,
-    }).toString();
-
-  window.open(url, "_blank", "noopener,noreferrer");
-}
-
-function openGasNearby() {
-  const destination = liveChecks?.location || "";
-
-  const query = `gas stations near ${destination}`;
-
-  const url =
-    "https://www.google.com/maps/search/?" +
-    new URLSearchParams({
-      api: "1",
-      query,
-    }).toString();
-
-  window.open(url, "_blank", "noopener,noreferrer");
-}
-
-function openWorshipNearby() {
-  const destination = liveChecks?.location || "";
-
-  const query = `places of worship near ${destination}`;
-
-  const url =
-    "https://www.google.com/maps/search/?" +
-    new URLSearchParams({
-      api: "1",
-      query,
-    }).toString();
-
-  window.open(url, "_blank", "noopener,noreferrer");
-}
-function openMedicalNearby() {
-  const destination = liveChecks?.location || "";
-
-  const query = `hospitals and urgent care near ${destination}`;
-
-  const url =
-    "https://www.google.com/maps/search/?" +
-    new URLSearchParams({
-      api: "1",
-      query,
-    }).toString();
-
-  window.open(url, "_blank", "noopener,noreferrer");
-}
-function openRoadConditions() {
-  const destination = liveChecks?.location || "";
-
-  const query = `current road conditions closures traffic near ${destination}`;
-
-  const url =
-    "https://www.google.com/search?" +
-    new URLSearchParams({
-      q: query,
-    }).toString();
-
-  window.open(url, "_blank", "noopener,noreferrer");
-}
   return (
-  <main className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#061426] text-white">
-      <header className="border-b border-white/10 bg-[#061426]/90 px-6 py-5 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <a href="/" className="text-2xl font-black">
-            Trippin<span className="text-sky-400">Days</span>
-          </a>
-          <a href="/" className="rounded-full border border-white/20 px-5 py-2 font-bold hover:bg-white/10">
-            New Adventure
+    <main className="min-h-screen bg-slate-950 px-4 py-8 text-white sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-black uppercase tracking-[0.25em] text-sky-300">
+              TrippinDays
+            </p>
+            <h1 className="mt-2 text-4xl font-black sm:text-5xl">Saved Trips</h1>
+            <p className="mt-3 max-w-2xl text-white/65">
+              Your future adventures live here. Open the exact itinerary you saved and keep tracking what you spend before the trip begins.
+            </p>
+          </div>
+
+          <a
+            href="/"
+            className="rounded-2xl border border-white/15 bg-white/5 px-5 py-3 font-black transition hover:bg-white/10"
+          >
+            ← Plan Another Trip
           </a>
         </div>
-      </header>
 
-      <div className="mx-auto w-full max-w-7xl min-w-0 px-4 sm:px-6 py-10">
-        {isLoading && <LoadingPanel />}
-
-        {error && !isLoading && (
-          <section className="rounded-3xl border border-red-400/30 bg-red-500/10 p-8">
-            <h1 className="text-3xl font-black">We couldn&apos;t build that trip</h1>
-            <p className="mt-3 text-red-100/80">{error}</p>
-            <a href="/" className="mt-6 inline-block rounded-2xl bg-sky-500 px-6 py-4 font-black">
-              Return Home
-            </a>
-          </section>
+        {error && (
+          <div className="mb-6 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-5 text-rose-100">
+            {error}
+          </div>
         )}
 
-        {!isLoading && !error && aiPlan && (
-          <>
-  
-            <section className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-blue-700 via-sky-700 to-slate-950 p-8 shadow-2xl">
-              <p className="text-sm font-black uppercase tracking-[0.25em] text-sky-200">
-                Your itinerary is ready
-              </p>
-              <h1 className="mt-4 text-4xl font-black sm:text-6xl">{tripTitle}</h1>
-              <p className="mt-4 text-2xl font-bold text-sky-100">📍 {destination}</p>
-              {imageUrl && (
-  <div className="mt-6 overflow-hidden rounded-3xl">
-    <img
-      src={imageUrl}
-      alt={destination || tripTitle}
-      className="h-72 w-full object-cover sm:h-96"
-    />
-
-    {photographer && (
-      <p className="px-3 py-2 text-xs text-white/60">
-        Photo by{" "}
-        <a
-          href={photographerUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline"
-        >
-          {photographer}
-        </a>
-        {" "}on{" "}
-        <a
-          href={pexelsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline"
-        >
-          Pexels
-        </a>
-      </p>
-    )}
-  </div>
-  
-)}
-
-<button
-  type="button"
-  onClick={() =>
-    document
-      .getElementById("adventure-itinerary")
-      ?.scrollIntoView({ behavior: "smooth" })
-  }
- className="mx-auto mt-3 flex w-fit items-center justify-center gap-2 rounded-2xl border border-sky-300 bg-white/5 px-6 py-3 font-black text-sky-200 transition hover:bg-white/10 hover:text-white"
->
-<span>Skip to Itinerary</span>
-<span className="text-2xl font-black">↓↓</span>
-</button>
-              {summary && <p className="mt-5 max-w-3xl text-lg leading-8 text-white/80">{summary}</p>}
-              <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <button onClick={() => navigate()} className="rounded-2xl bg-white px-6 py-4 font-black text-slate-950">
-                  🧭 Start Navigation
-                </button>
-  <button
-  type="button"
-  onClick={() => void saveTrip()}
-  disabled={isSaving}
-  className="rounded-2xl bg-emerald-500 px-6 py-4 font-black hover:bg-emerald-400 disabled:opacity-50"
->
-  {saveMessage === "✅ Trip Saved!"
-  ? "✅ Trip Saved!"
-  : isSaving
-    ? "Saving..."
-    : "💾 Save Trip"}
-</button>
-<button
-  type="button"
-  onClick={() => void buildTrip(request, recentDestinations)}
-  disabled={isLoading}
-  className="rounded-2xl bg-violet-500 px-6 py-4 font-black hover:bg-violet-400 disabled:opacity-50"
->
-  {isLoading ? "Regenerating..." : "🔄 Regenerate"}
-</button>
-{destination && (
-  <a
-    href={`https://www.google.com/search?q=${encodeURIComponent(
-      destination + " official tourism visitor information attractions"
-    )}`}
-    target="_blank"
-    rel="noopener noreferrer"
-   className="flex h-full min-h-[56px] w-full items-center justify-center rounded-2xl bg-sky-500 px-6 py-4 text-center font-black text-white hover:bg-sky-400"
-  >
-    🔎 Research {destination}
-  </a>
-)}
-              </div>
-            </section>
-
-            <section className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-5">
-              <SummaryCard icon="🏁" label="Starting Point" value={start || "Current location"} />
-              <SummaryCard icon="💵" label="Budget" value={budget} />
-              <SummaryCard icon="⏱️" label="Time Available" value={time} />
-              <SummaryCard icon="👥" label="Travelers" value={travelers} />
-              <SummaryCard
-  icon="🚗"
-  label="Round Trip"
-  value={roundTripMiles !== null ? `${Math.round(roundTripMiles)} mi` : "—"}
-/>
-        
- <section className="text-center mt-8 col-span-2 lg:col-span-5 rounded-3xl ...">
-  <div className="flex flex-col gap-4">
-    <div>
-      <p className="text-sm font-black uppercase tracking-widest text-amber-300">
-        ⭐ Premium Adventure Builder
-      </p>
-
-      <h2 className="mt-2 text-2xl font-black">
-        Remix My Trip
-      </h2>
-
-      <p className="mt-2 text-white/70">
-        Change the style of your adventure without starting over.
-        Choose one or more.
-      </p>
-    </div>
-
-    <div
-  className={`mx-auto grid w-full max-w-5xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 ${
-    !isPremium ? "pointer-events-none opacity-40" : ""
-  }`}
->
-
-      <button
-        type="button"
-        onClick={() => toggleRemix("cheaper")}
-        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
-          selectedRemixes.includes("cheaper")
-            ? "border-amber-300 bg-amber-400/20"
-            : "border-white/10 bg-white/5 hover:bg-white/10"
-        }`}
-      >
-        💰 Make It Cheaper
-      </button>
-
-      <button
-        type="button"
-        onClick={() => toggleRemix("romantic")}
-        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
-          selectedRemixes.includes("romantic")
-            ? "border-amber-300 bg-amber-400/20"
-            : "border-white/10 bg-white/5 hover:bg-white/10"
-        }`}
-      >
-        💕 Romantic
-      </button>
-
-      <button
-        type="button"
-        onClick={() => toggleRemix("hiddenGems")}
-        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
-          selectedRemixes.includes("hiddenGems")
-            ? "border-amber-300 bg-amber-400/20"
-            : "border-white/10 bg-white/5 hover:bg-white/10"
-        }`}
-      >
-        💎 Hidden Gems
-      </button>
-
-      <button
-        type="button"
-        onClick={() => toggleRemix("adventure")}
-        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
-          selectedRemixes.includes("adventure")
-            ? "border-amber-300 bg-amber-400/20"
-            : "border-white/10 bg-white/5 hover:bg-white/10"
-        }`}
-      >
-        🧭 More Adventure
-      </button>
-
-      <button
-        type="button"
-        onClick={() => toggleRemix("rainyDay")}
-        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
-          selectedRemixes.includes("rainyDay")
-            ? "border-amber-300 bg-amber-400/20"
-            : "border-white/10 bg-white/5 hover:bg-white/10"
-        }`}
-      >
-        🌧️ Rainy Day
-      </button>
-
-      <button
-        type="button"
-        onClick={() => toggleRemix("familyFriendly")}
-        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
-          selectedRemixes.includes("familyFriendly")
-            ? "border-amber-300 bg-amber-400/20"
-            : "border-white/10 bg-white/5 hover:bg-white/10"
-        }`}
-      >
-        👨‍👩‍👧 Family Friendly
-      </button>
-
-      <button
-        type="button"
-        onClick={() => toggleRemix("petFriendly")}
-        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
-          selectedRemixes.includes("petFriendly")
-            ? "border-amber-300 bg-amber-400/20"
-            : "border-white/10 bg-white/5 hover:bg-white/10"
-        }`}
-      >
-        🐾 Pet Friendly
-      </button>
-
-      <button
-        type="button"
-        onClick={() => toggleRemix("adrenalineJunkie")}
-        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
-          selectedRemixes.includes("adrenalineJunkie")
-            ? "border-amber-300 bg-amber-400/20"
-            : "border-white/10 bg-white/5 hover:bg-white/10"
-        }`}
-      >
-        ⚡ Adrenaline Junkie
-      </button>
-
-      <button
-        type="button"
-        onClick={() => toggleRemix("nightlife")}
-        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
-          selectedRemixes.includes("nightlife")
-            ? "border-amber-300 bg-amber-400/20"
-            : "border-white/10 bg-white/5 hover:bg-white/10"
-        }`}
-      >
-        🌙 Nightlife
-      </button>
-
-      <button
-        type="button"
-        onClick={() => toggleRemix("theArts")}
-        className={`min-h-[60px] w-full rounded-2xl border p-3 text-center font-bold ${
-          selectedRemixes.includes("theArts")
-            ? "border-amber-300 bg-amber-400/20"
-            : "border-white/10 bg-white/5 hover:bg-white/10"
-        }`}
-      >
-        🎨 The Arts
-      </button>
-
-    </div>
-
-    <button
-      type="button"
-      onClick={() => void remixTrip(selectedRemixes)}
-      disabled={!isPremium || selectedRemixes.length === 0 || Boolean(isRemixing)}
-      className="mx-auto mt-2 w-full max-w-5xl rounded-2xl bg-amber-400 px-6 py-4 font-black text-slate-950 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      {isRemixing ? "✨ Remixing Trip..." : "✨ Remix Selected Options"}
-    </button>
-    {!isPremium && (
-  <div className="mt-3 text-center">
-    <p className="font-bold text-amber-200">
-      🔒 Remix My Trip is a Premium feature
-    </p>
-
-   <button
-  type="button"
-  onClick={async () => {
-    const response = await fetch("/api/checkout", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        plan: "yearly",
-      }),
-    });
-
-    const data = await response.json();
-
-    if (data.url) {
-      window.location.href = data.url;
-    }
-  }}
-  className="mt-2 inline-block rounded-xl bg-amber-400 px-5 py-3 font-black text-slate-950 hover:bg-amber-300"
->
-  ⭐ Upgrade to Premium
-</button>
-  </div>
-)}
-  </div>
-    </section>
-        
-  </section>
-
-            <section className="mt-8 grid gap-6 lg:grid-cols-2">
-               {budgetBreakdown && budgetBreakdown.total > 0 && (
-  <div className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6">
-
-    {/* TITLE CENTERED AT TOP */}
-    <h2 className="mb-6 text-center text-xl font-black uppercase tracking-wide text-white">
-      Budget Breakdown
-    </h2>
-
-    {/* DONUT LEFT / COST BREAKDOWN RIGHT */}
-    <div className="grid w-full grid-cols-[42%_58%] items-center gap-2">
-
-      {/* LEFT SIDE — DONUT GRAPH */}
-      <div className="flex justify-center">
-        <div
-          className="relative h-40 w-40 shrink-0 rounded-full"
-          style={{
-            background: `conic-gradient(
-              #22c55e 0deg ${(budgetBreakdown.fuel / budgetBreakdown.total) * 360}deg,
-              #38bdf8 ${(budgetBreakdown.fuel / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food) / budgetBreakdown.total) * 360}deg,
-              #a855f7 ${((budgetBreakdown.fuel + budgetBreakdown.food) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities) / budgetBreakdown.total) * 360}deg,
-              #f59e0b ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking) / budgetBreakdown.total) * 360}deg,
-              #ec4899 ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking) / budgetBreakdown.total) * 360}deg ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking + budgetBreakdown.lodging) / budgetBreakdown.total) * 360}deg,
-              #e2e8f0 ${((budgetBreakdown.fuel + budgetBreakdown.food + budgetBreakdown.activities + budgetBreakdown.parking + budgetBreakdown.lodging) / budgetBreakdown.total) * 360}deg 360deg
-            )`,
-          }}
-        >
-          {/* CENTER OF DONUT */}
-          <div className="absolute inset-5 flex items-center justify-center rounded-full bg-slate-950">
-            <div className="text-center">
-              <p className="text-xs font-black uppercase text-white/60">
-                Total
-              </p>
-
-              <p className="text-xl font-black text-white">
-                ${budgetBreakdown.total.toFixed(0)}
-              </p>
-            </div>
+        {isLoading ? (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-10 text-center">
+            <div className="text-4xl">🧳</div>
+            <p className="mt-4 font-black">Loading your saved trips...</p>
           </div>
-        </div>
-      </div>
-
-      {/* RIGHT SIDE — COST BREAKDOWN */}
-      <div className="flex min-w-0 flex-col justify-center gap-3 pl-2 text-left text-white">
-
-        <p className="whitespace-nowrap font-bold">
-          🟢 Fuel — ${budgetBreakdown.fuel.toFixed(0)}
-        </p>
-
-        <p className="whitespace-nowrap font-bold">
-          🔵 Food — ${budgetBreakdown.food.toFixed(0)}
-        </p>
-
-        <p className="whitespace-nowrap font-bold">
-          🟣 Activities — ${budgetBreakdown.activities.toFixed(0)}
-        </p>
-
-        <p className="whitespace-nowrap font-bold">
-          🟡 Parking — ${budgetBreakdown.parking.toFixed(0)}
-        </p>
-
-        <p className="whitespace-nowrap font-bold">
-          🩷 Lodging — ${budgetBreakdown.lodging.toFixed(0)}
-        </p>
-
-        <p className="whitespace-nowrap font-bold">
-          ⚪ Other — ${budgetBreakdown.other.toFixed(0)}
-        </p>
-
-      </div>
-    </div>
-  </div>
-)}
-              <div className="w-full min-w-0 rounded-3xl border border-emerald-400/25 bg-emerald-500/10 p-7">
-                <p className="text-sm font-black uppercase tracking-widest text-emerald-300">🏆 Why this trip fits</p>
-                <h2 className="mt-3 text-3xl font-black">{destination}</h2>
-                <div className="mt-5 space-y-3">
-                  {(whySelected.length ? whySelected : ["Matches your request, budget, and available time."]).map((reason, index) => (
-                    <p key={`${reason}-${index}`} className="rounded-2xl bg-black/20 p-4 text-white/80 mx-3">
-                      ✅ {reason}
-                    </p>
-                  ))}
-                </div>
-              </div>
-<div className="grid w-full min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2">
-  <button
-    type="button"
-    onClick={openFoodNearby}
-  className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-cyan-300/40"
-  >
-    <div className="text-3xl">🍽️</div>
-    <h3 className="mt-3 text-xl font-black">Food Nearby</h3>
-    <p className="mt-2 text-sm text-white/60">
-      Find restaurants near your destination.
-    </p>
-    <p className="mt-4 text-sm font-black text-cyan-300">
-      Open in Maps →
-    </p>
-  </button>
-
-  <button
-    type="button"
-    onClick={openGasNearby}
- className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-cyan-300/40"
-  >
-    <div className="text-3xl">⛽</div>
-    <h3 className="mt-3 text-xl font-black">Gas Nearby</h3>
-    <p className="mt-2 text-sm text-white/60">
-      Find fuel stops near your destination.
-    </p>
-    <p className="mt-4 text-sm font-black text-cyan-300">
-      Open in Maps →
-    </p>
-  </button>
-
-  <button
-    type="button"
-    onClick={openWorshipNearby}
-  className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-cyan-300/40">
-    <div className="text-3xl">🙏</div>
-    <h3 className="mt-3 text-xl font-black">Places of Worship</h3>
-    <p className="mt-2 text-sm text-white/60">
-      Find churches, temples, mosques, synagogues, and other places of worship nearby.
-    </p>
-    <p className="mt-4 text-sm font-black text-cyan-300">
-      Explore Nearby →
-    </p>
-  </button>
-
-  <button
-    type="button"
-    onClick={openMedicalNearby}
-  className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-cyan-300/40"
-  >
-    <div className="text-3xl">🏥</div>
-    <h3 className="mt-3 text-xl font-black">
-      Hospitals & Urgent Care
-    </h3>
-    <p className="mt-2 text-sm text-white/60">
-      Find hospitals, emergency rooms, and urgent care near your destination.
-    </p>
-    <p className="w-[calc(100%-16px)] mx-auto min-w-0 rounded-3xl ...">
-      Open in Maps →
-    </p>
-  </button>
-
-<button
-  type="button"
-  onClick={openRoadConditions}
-className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition hover:border-cyan-300/40"
->
-  <div className="text-3xl">🚧</div>
-
-  <h3 className="mt-3 text-xl font-black">
-    Road Conditions
-  </h3>
-
-  <p className="mt-2 text-sm text-white/60">
-    Check current road conditions, closures, and traffic.
-  </p>
-
-  <p className="mt-4 text-sm font-black text-cyan-300">
-    Check Roads →
-  </p>
-</button>
-{musicSuggestions.length > 0 && (
-  <div className="w-full min-w-0 rounded-3xl border border-white/10 bg-white/5 p-6 text-left">
-    <div className="text-3xl">🎵</div>
-
-    <h3 className="mt-3 text-xl font-black">
-      Music for the Trip
-    </h3>
-
-    <p className="mt-2 text-sm text-white/60">
-      Songs picked to match your adventure.
-    </p>
-
-    <div className="mt-4 space-y-2">
-      {musicSuggestions.map((song, index) => (
-        <div key={index}>
-          <p className="text-sm font-black">{song.title}</p>
-          <p className="text-sm text-cyan-300">{song.artist}</p>
-        </div>
-      ))}
-    </div>
-  </div>
-)}
-</div>
-  {eventsLoading && (
-  <section className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-6">
-    <p className="text-center font-bold text-white/70">
-      Loading nearby sports and concerts...
-    </p>
-  </section>
-)}
-
-{!eventsLoading && nearbyEvents.length > 0 && (
-  <section className="space-y-6">
-
-    {/*  SPORTS */}
-    {nearbyEvents.some((event) => event.type === "sports") && (
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-        <h2 className="mb-5 text-2xl font-black text-white">
-          🏟️ Live Sports Nearby
-        </h2>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          {nearbyEvents
-            .filter((event) => event.type === "sports")
-            .slice(0, 6)
-            .map((event) => (
-              <div
-                key={event.id}
-                className="rounded-2xl border border-white/10 bg-black/20 p-5"
+        ) : trips.length === 0 && !error ? (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-10 text-center">
+            <div className="text-5xl">🗺️</div>
+            <h2 className="mt-4 text-2xl font-black">No saved trips yet</h2>
+            <p className="mt-2 text-white/60">
+              Build an adventure and tap Save Trip. It will appear here.
+            </p>
+            <a
+              href="/"
+              className="mt-6 inline-flex rounded-2xl bg-sky-500 px-6 py-3 font-black text-white hover:bg-sky-400"
+            >
+              Plan an Adventure
+            </a>
+          </div>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {trips.map((trip) => (
+              <article
+                key={trip.id}
+                className="overflow-hidden rounded-3xl border border-white/10 bg-white/5"
               >
-                <h3 className="text-lg font-black text-white">
-                  {event.name}
-                </h3>
-
-                <p className="mt-2 text-sm text-white/70">
-                  {event.venue?.name}
-                  {event.venue?.city ? ` • ${event.venue.city}` : ""}
-                  {event.venue?.state ? `, ${event.venue.state}` : ""}
-                </p>
-
-                <p className="mt-2 text-sm font-bold text-cyan-300">
-                  {event.date}
-                  {event.time ? ` • ${event.time}` : ""}
-                </p>
-
-                {event.ticketUrl && (
-                  <a
-                    href={event.ticketUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-4 inline-block rounded-xl bg-emerald-500 px-4 py-2 font-black text-black"
-                  >
-                    🎟️ Buy Tickets
-                  </a>
-                )}
-              </div>
-            ))}
-        </div>
-      </div>
-    )}
-
-    {/* CONCERTS */}
-    {nearbyEvents.some((event) => event.type === "concert") && (
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-        <h2 className="mb-5 text-2xl font-black text-white">
-          🎵 Concerts Nearby
-        </h2>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          {nearbyEvents
-            .filter((event) => event.type === "concert")
-            .slice(0, 6)
-            .map((event) => (
-              <div
-                key={event.id}
-                className="rounded-2xl border border-white/10 bg-black/20 p-5"
-              >
-                <h3 className="text-lg font-black text-white">
-                  {event.name}
-                </h3>
-
-                <p className="mt-2 text-sm text-white/70">
-                  {event.venue?.name}
-                  {event.venue?.city ? ` • ${event.venue.city}` : ""}
-                  {event.venue?.state ? `, ${event.venue.state}` : ""}
-                </p>
-
-                <p className="mt-2 text-sm font-bold text-cyan-300">
-                  {event.date}
-                  {event.time ? ` • ${event.time}` : ""}
-                </p>
-
-                {event.ticketUrl && (
-                  <a
-                    href={event.ticketUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-4 inline-block rounded-xl bg-violet-500 px-4 py-2 font-black text-white"
-                  >
-                    🎟️ Buy Tickets
-                  </a>
-                )}
-              </div>
-            ))}
-        </div>
-      </div>
-    )}
-
-  </section>
-)}
-
-              <WeatherPanel
-  liveChecks={liveChecks}
-  overnightStops={overnightStops}
-  travelers={travelers}
-  onNavigate={(query) => navigate(query)}
-/>
-            </section>
-
-            <section className="mt-10">
-              <p className="text-sm font-black uppercase tracking-widest text-sky-300">
-                Your day, stop by stop
-              </p>
-              <h2 className="mt-2 text-4xl font-black">Itinerary</h2>
-
-              <div className="mt-6 space-y-5">
-                {sections.map((section, index) => (
-                  <ItineraryCard
-                    key={`${section.title}-${index}`}
-                    section={section}
-                    index={index}
-                    onNavigate={(query) => navigate(query)}
+                {trip.image_url ? (
+                  <div
+                    className="h-44 bg-cover bg-center"
+                    style={{ backgroundImage: `url(${trip.image_url})` }}
                   />
-                ))}
-              </div>
-            </section>
-
-            {adventures.length > 0 && (
-              <section className="mt-10">
-                <div className="flex flex-wrap items-end justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-black uppercase tracking-widest text-sky-300">
-                      Other adventures
-                    </p>
-                    <h2 className="mt-2 text-4xl font-black">
-                      More matches for your request
-                    </h2>
+                ) : (
+                  <div className="flex h-44 items-center justify-center bg-slate-900 text-6xl">
+                    🚗
                   </div>
+                )}
 
-                  <div className="rounded-full bg-sky-500/15 px-5 py-2 font-bold text-sky-200">
-                    {adventures.length} choices
-                  </div>
+                <div className="p-6">
+                  <p className="text-xs font-black uppercase tracking-widest text-sky-300">
+                    Saved Adventure
+                  </p>
+                  <h2 className="mt-2 text-2xl font-black">
+                    {trip.title || trip.destination || "TrippinDays Adventure"}
+                  </h2>
+
+                  {(() => {
+                    const startDate = getTripStartDate(trip.trip_request);
+                    const tripStatus = getTripStatus(startDate);
+                    const spent = trip.spendingTotal || 0;
+                    const remaining =
+                      trip.budget !== null
+                        ? Math.max(Number(trip.budget) - spent, 0)
+                        : null;
+
+                    return (
+                      <>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-wide ${
+                              tripStatus === "Upcoming"
+                                ? "bg-emerald-500/15 text-emerald-300"
+                                : tripStatus === "Completed"
+                                  ? "bg-white/10 text-white/60"
+                                  : "bg-sky-500/15 text-sky-300"
+                            }`}
+                          >
+                            {tripStatus}
+                          </span>
+                          {startDate && (
+                            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/75">
+                              📅 {new Date(`${startDate}T12:00:00`).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="mt-4 space-y-2 text-sm text-white/65">
+                          {trip.starting_location && (
+                            <p>
+                              <span className="font-bold text-white/90">From:</span>{" "}
+                              {trip.starting_location}
+                            </p>
+                          )}
+                          {trip.destination && (
+                            <p>
+                              <span className="font-bold text-white/90">To:</span>{" "}
+                              {trip.destination}
+                            </p>
+                          )}
+                          {trip.time_available && (
+                            <p>
+                              <span className="font-bold text-white/90">Time:</span>{" "}
+                              {trip.time_available}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="mt-5 grid grid-cols-3 gap-2">
+                          <div className="rounded-2xl bg-black/20 p-3 text-center">
+                            <p className="text-[10px] font-black uppercase tracking-wide text-white/45">
+                              Budget
+                            </p>
+                            <p className="mt-1 font-black">
+                              {trip.budget !== null ? money(trip.budget) : "—"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-2xl bg-black/20 p-3 text-center">
+                            <p className="text-[10px] font-black uppercase tracking-wide text-white/45">
+                              Spent
+                            </p>
+                            <p className="mt-1 font-black text-emerald-300">
+                              {money(spent)}
+                            </p>
+                          </div>
+
+                          <div className="rounded-2xl bg-black/20 p-3 text-center">
+                            <p className="text-[10px] font-black uppercase tracking-wide text-white/45">
+                              Remaining
+                            </p>
+                            <p className="mt-1 font-black text-sky-300">
+                              {remaining !== null ? money(remaining) : "—"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {trip.created_at && (
+                          <p className="mt-4 text-xs text-white/35">
+                            Saved {new Date(trip.created_at).toLocaleDateString()}
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
+
+                  <button
+                    type="button"
+                    onClick={() => openTrip(trip)}
+                    className="mt-6 w-full rounded-2xl bg-sky-500 px-5 py-4 font-black hover:bg-sky-400"
+                  >
+                    🗺️ Open Trip & Spending
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void deleteTrip(trip.id)}
+                    disabled={deletingId === trip.id}
+                    className="mt-3 w-full rounded-2xl border border-white/15 bg-white/5 px-5 py-3 font-bold text-white/70 hover:bg-white/10 disabled:opacity-50"
+                  >
+                    {deletingId === trip.id ? "Removing..." : "Remove Saved Trip"}
+                  </button>
                 </div>
-
-                <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                  {adventures.map((adventure, index) => (
-                    <AdventureCard
-                      key={`${adventure.name}-${index}`}
-                      adventure={adventure}
-                      selected={index === 0}
-                      onOpen={() => openAdventure(adventure)}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
-
-            <section className="mt-10 rounded-3xl border border-white/10 bg-white/5 p-8">
-              <p className="text-sm font-black uppercase tracking-widest text-sky-300">
-                Finish your adventure
-              </p>
-
-              <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-7">
-              <button
-  type="button"
-onClick={() => void saveTrip()}
-  disabled={isSaving}
-className="rounded-2xl bg-emerald-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
->
-{saveMessage === "🟩 Trip Saved!" ? (
-  <>
-    <span>🟩</span>
-    <span>Trip Saved!</span>
-  </>
-) : isSaving ? (
-  <span>Saving...</span>
-) : (
-  <>
-    <span>💾</span>
-    <span>Save Trip</span>
-  </>
-)}
-</button>
-<button
-  type="button"
-  onClick={() => void buildTrip(request, recentDestinations)}
-  disabled={isLoading}
- className="rounded-2xl bg-violet-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
->
-  {isLoading ? (
-    <span className="whitespace-nowrap">Regenerating...</span>
-  ) : (
-    <>
-      <span>🔄</span>
-      <span className="whitespace-nowrap">Regenerate</span>
-    </>
-  )}
-</button>
-                <button
-                  type="button"
-                  onClick={() => navigate()}
-                className="rounded-2xl bg-blue-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
-                >
-                  <span>🧭</span>
-                  <span className="whitespace-nowrap">Start Entire Trip</span>
-                </button>
-
-                <a
-  href="/journal"
-  className="rounded-2xl bg-cyan-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2"
->
-  <span>📓</span>
-  <span className="whitespace-nowrap">Create Journal</span>
-</a>
-
-                <a
-  href="/passport"
-className="rounded-2xl bg-cyan-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
->
-  <span>🛂</span>
-  <span className="whitespace-nowrap">View Passport</span>
-</a>
-
-               <button
-  type="button"
-  onClick={() => window.print()}
-  className="rounded-2xl bg-slate-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
->
-  <span>🖨️</span>
-  <span className="whitespace-nowrap">Print</span>
-</button>
-
-                <button
-  type="button"
-  onClick={() => void shareTrip()}
- className="rounded-2xl bg-sky-500 px-6 py-4 font-black flex flex-col items-center justify-center gap-2 ..."
->
-  <span>📤</span>
-  <span className="whitespace-nowrap">Share</span>
-</button>
-              </div>
-
-             {saveMessage && (
-  <div className="mx-auto mt-5 max-w-3xl rounded-2xl bg-amber-500/15 p-4 text-center font-bold text-amber-200 break-words">
-    {saveMessage}
-  </div>
-)}
-            </section>
-          </>
+              </article>
+            ))}
+          </div>
         )}
       </div>
     </main>
   );
 }
-
-function SummaryCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-      <div className="text-3xl">{icon}</div>
-      <p className="mt-4 text-xs font-black uppercase tracking-widest text-white/40">
-        {label}
-      </p>
-      <p className="mt-2 text-lg font-black">{value}</p>
-    </div>
-  );
-}
-
-function ItineraryCard({
-  section,
-  index,
-  onNavigate,
-}: {
-  section: Section;
-  index: number;
-  onNavigate: (query: string) => void;
-}) {
-  return (
-    <article
-  id={index === 0 ? "adventure-itinerary" : undefined}
-  className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-xl"
->
-      <div className="flex items-start gap-4">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-sky-400/15 text-3xl">
-          {section.emoji}
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-sky-300">
-            Stop {index + 1}
-          </p>
-          <h3 className="mt-2 text-2xl font-black">
-  {section.title}
-  {!/(check before leaving|warning|weather|budget|cost|drive|distance|travel|depart|arrive)/i.test(section.title) && (
-  <a
-    href={`https://www.google.com/search?q=${encodeURIComponent(
-      section.title + " official website visitor information"
-    )}`}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="ml-3 text-sm font-bold text-sky-300 underline hover:text-sky-200"
-  >
-    🔎 Research
-  </a>
-)}
-</h3>
-        </div>
-      </div>
-
-      <div className="mt-5 space-y-3">
-        {section.lines.map((line, lineIndex) => (
-          <p
-            key={`${line}-${lineIndex}`}
-            className="rounded-2xl bg-black/20 p-4 leading-7 text-white/80"
-          >
-            {line}
-          </p>
-        ))}
-      </div>
-
-      {section.navigationQuery && (
-        <button
-          type="button"
-          onClick={() => onNavigate(section.navigationQuery!)}
-          className="mt-5 w-full rounded-2xl bg-blue-600 px-5 py-4 font-black hover:bg-blue-500"
-        >
-          🧭 Navigate Here
-        </button>
-      )}
-    </article>
-  );
-}
-
-function AdventureCard({
-  adventure,
-  selected,
-  onOpen,
-}: {
-  adventure: AdventureOption;
-  selected: boolean;
-  onOpen: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className={`relative w-full rounded-3xl border p-6 text-left transition hover:-translate-y-1 hover:shadow-2xl ${
-        selected
-          ? "border-emerald-400/50 bg-emerald-500/10"
-          : "border-white/10 bg-white/5"
-      }`}
-    >
-      {selected && (
-        <div className="absolute right-4 top-4 rounded-full bg-emerald-400 px-3 py-1 text-xs font-black text-slate-950">
-          AI PICK
-        </div>
-      )}
-
-      <div className="text-5xl">{adventure.emoji || "🚗"}</div>
-      <h3 className="mt-4 pr-16 text-2xl font-black">{adventure.name}</h3>
-      <p className="mt-1 text-white/55">{adventure.region}</p>
-
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <InfoCard label="Match" value={`${adventure.matchScore}/100`} />
-        <InfoCard label="Cost" value={`$${adventure.estimatedCost}`} />
-        <InfoCard label="Drive" value={adventure.estimatedDriveTime} />
-        <InfoCard label="Distance" value={adventure.estimatedDistance} />
-      </div>
-
-      <p className="mt-5 leading-7 text-white/70">{adventure.reason}</p>
-      <div className="mt-6 font-black text-sky-300">Build This Trip →</div>
-    </button>
-  );
-}
-
-function WeatherPanel({
-  liveChecks,
-  overnightStops,
-  travelers,
-  onNavigate,
-}: {
-  liveChecks: LiveChecks | null;
-  overnightStops: OvernightStop[];
-  travelers: string;
-  onNavigate: (query: string) => void;
-}) {
-  const [bookingChoice, setBookingChoice] = useState<{
-    stop: OvernightStop;
-    kind: "Hotels & Motels" | "Campgrounds & RV" | "Cabins & Lodges";
-  } | null>(null);
-
-  const [selectedLodgings, setSelectedLodgings] = useState<Record<string, SelectedLodging>>({});
-  const [lodgingEditor, setLodgingEditor] = useState<{
-    stop: OvernightStop;
-    kind: "Hotels & Motels" | "Campgrounds & RV" | "Cabins & Lodges";
-  } | null>(null);
-  const [lodgingName, setLodgingName] = useState("");
-  const [lodgingAddress, setLodgingAddress] = useState("");
-
-  function lodgingStopKey(stop: OvernightStop) {
-    return `${stop.stage}|${stop.location}|${stop.checkIn}`;
-  }
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("trippindays-selected-lodgings");
-      if (saved) {
-        setSelectedLodgings(JSON.parse(saved));
-      }
-    } catch {
-      setSelectedLodgings({});
-    }
-  }, []);
-
-  function openLodgingEditor(
-    stop: OvernightStop,
-    kind: "Hotels & Motels" | "Campgrounds & RV" | "Cabins & Lodges"
-  ) {
-    const existing = selectedLodgings[lodgingStopKey(stop)];
-    setLodgingName(existing?.name || "");
-    setLodgingAddress(existing?.address || "");
-    setLodgingEditor({ stop, kind: existing?.kind || kind });
-  }
-
-  function saveLodgingSelection() {
-    if (!lodgingEditor || !lodgingName.trim()) return;
-
-    const key = lodgingStopKey(lodgingEditor.stop);
-    const next = {
-      ...selectedLodgings,
-      [key]: {
-        name: lodgingName.trim(),
-        address: lodgingAddress.trim(),
-        kind: lodgingEditor.kind,
-      },
-    };
-
-    setSelectedLodgings(next);
-    localStorage.setItem("trippindays-selected-lodgings", JSON.stringify(next));
-    setLodgingEditor(null);
-    setLodgingName("");
-    setLodgingAddress("");
-  }
-
-  function navigateToLodging(stop: OvernightStop) {
-    const lodging = selectedLodgings[lodgingStopKey(stop)];
-    if (!lodging) return;
-
-    const query = [lodging.name, lodging.address || stop.location]
-      .filter(Boolean)
-      .join(", ");
-
-    onNavigate(query);
-  }
-
-  function buildExpediaHotelUrl(
-    stop: OvernightStop,
-    destinationOverride?: string
-  ) {
-    const destination = destinationOverride || stop.location;
-
-    const params = new URLSearchParams({
-      destination,
-      flexibility: "0_DAY",
-      adults: getAdultCount(travelers).toString(),
-      rooms: "1",
-
-      // Current TrippinDays Expedia affiliate tracking from the
-      // latest working Expedia Creator link supplied by the user.
-      clickref: "1100lDp3r8rH",
-      affcid: "US.DIRECT.PHG.1011l438666.1100l68075",
-      ref_id: "1100lDp3r8rH",
-      my_ad: "AFF.US.DIRECT.PHG.1011l438666.1100l68075",
-      afflid: "1100lDp3r8rH",
-      affdtl: "PHG.1100lDp3r8rH.PZfeWdmdK9",
-
-      sort: "RECOMMENDED",
-      useRewards: "false",
-    });
-
-    if (stop.checkIn) {
-      params.set("d1", stop.checkIn);
-      params.set("startDate", stop.checkIn);
-    }
-
-    if (stop.checkOut) {
-      params.set("d2", stop.checkOut);
-      params.set("endDate", stop.checkOut);
-    }
-
-    return `https://www.expedia.com/Hotel-Search?${params.toString()}`;
-  }
-
-  function buildNearbyExpediaUrl(stop: OvernightStop) {
-    // Keep the real overnight city as the Expedia destination.
-    // Appending phrases like "and nearby areas" can prevent Expedia
-    // from resolving the destination and leave "Where to?" blank.
-    return buildExpediaHotelUrl(stop, stop.location);
-  }
-
-  function buildMapsLodgingUrl(
-    stop: OvernightStop,
-    kind: "Hotels & Motels" | "Campgrounds & RV" | "Cabins & Lodges"
-  ) {
-    const query =
-      kind === "Campgrounds & RV"
-        ? `campgrounds and RV parks near ${stop.location}`
-        : kind === "Cabins & Lodges"
-          ? `cabins and lodges near ${stop.location}`
-          : `hotels and motels near ${stop.location}`;
-
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
-  }
-  if (!liveChecks) {
-    return (
-<div
-  className="rounded-3xl border border-sky-400/30 p-6"
-  style={{
-    backgroundColor: "red",
-  }}
->
-        <p className="text-sm font-black uppercase tracking-widest">Live weather</p>
-        <h2 className="mt-3 text-2xl font-black">Weather location unavailable</h2>
-        <p className="mt-3 leading-7">Check current conditions before leaving.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div
-  className="rounded-3xl border border-sky-400/30 p-6"
-  style={{
-    backgroundImage: 'url("/images/sanfran.jpg")',
-    backgroundSize: "cover",
-    backgroundPosition: "center-right",
-    backgroundRepeat: "no-repeat",
-  }}
->
-      <p className="text-sm font-black uppercase tracking-widest text-sky-300">
-        Live destination weather
-      </p>
-      <h2 className="mt-3 text-3xl font-black">{liveChecks.location}</h2>
-
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <InfoCard label="Temperature" value={formatTemperature(liveChecks.temperature)} />
-        <InfoCard label="Feels Like" value={formatTemperature(liveChecks.feelsLike)} />
-        <InfoCard
-          label="High / Low"
-          value={
-            liveChecks.high === null || liveChecks.low === null
-              ? "Unavailable"
-              : `${Math.round(liveChecks.high)}° / ${Math.round(liveChecks.low)}°`
-          }
-        />
-        <InfoCard
-          label="Rain Chance"
-          value={liveChecks.rainChance === null ? "Unavailable" : `${liveChecks.rainChance}%`}
-        />
-        <InfoCard
-  label="UV Index"
-  value={
-    liveChecks.uvIndex == null
-      ? "Unavailable"
-      : `${liveChecks.uvIndex}`
-  }
-/>
-
-<InfoCard
-  label="Sunset"
-  value={liveChecks.sunset || "Unavailable"}
-/>
-
-<InfoCard
-  label="Wind Gusts"
-  value={
-    liveChecks.windGusts == null
-      ? "Unavailable"
-      : `${Math.round(liveChecks.windGusts)} mph`
-  }
-/>
-
-<InfoCard
-  label="Moon Phase"
-  value={liveChecks.moonPhase || "Unavailable"}
-/>
-      </div>
-<div className="mt-4 rounded-2xl bg-black/20 p-4">
-  <p className="text-xs font-bold uppercase tracking-wider text-white/50">
-    Travel Alerts
-  </p>
-
-  <p className="mt-2 font-bold">
-    {liveChecks.alerts?.length
-  ? liveChecks.alerts.join(" • ")
-  : "✓ No active weather alerts"}
-  </p>
-</div>
-
-{overnightStops.length > 0 && (
-  <div className="mt-5 space-y-4">
-    <p className="text-xs font-black uppercase tracking-wider text-white/60">
-      Overnight Stays by Trip Stage
-    </p>
-
-    {overnightStops.map((stop, index) => {
-      const selectedLodging = selectedLodgings[lodgingStopKey(stop)];
-
-      return (
-        <div
-          key={`${stop.stage}-${stop.location}-${index}`}
-          className="rounded-2xl border border-white/10 bg-black/20 p-4"
-        >
-          <p className="text-xs font-black uppercase tracking-wider text-cyan-300">
-            {stop.stage}
-          </p>
-
-          <h3 className="mt-1 text-lg font-black">
-            🌙 {overnightStayLabel(stop)}
-          </h3>
-
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <button
-              type="button"
-              onClick={() => setBookingChoice({ stop, kind: "Hotels & Motels" })}
-              className="rounded-xl border border-white/10 bg-black/25 p-3 text-left transition hover:border-sky-300/40 hover:bg-black/35"
-            >
-              <div className="text-xl">🏨</div>
-              <p className="mt-2 text-sm font-black">Hotels & Motels</p>
-              <p className="mt-1 text-xs text-white/55">Book This Stop →</p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setBookingChoice({ stop, kind: "Campgrounds & RV" })}
-              className="rounded-xl border border-white/10 bg-black/25 p-3 text-left transition hover:border-sky-300/40 hover:bg-black/35"
-            >
-              <div className="text-xl">⛺</div>
-              <p className="mt-2 text-sm font-black">Campgrounds & RV</p>
-              <p className="mt-1 text-xs text-white/55">Search This Stop →</p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setBookingChoice({ stop, kind: "Cabins & Lodges" })}
-              className="rounded-xl border border-white/10 bg-black/25 p-3 text-left transition hover:border-sky-300/40 hover:bg-black/35"
-            >
-              <div className="text-xl">🛖</div>
-              <p className="mt-2 text-sm font-black">Cabins & Lodges</p>
-              <p className="mt-1 text-xs text-white/55">Book This Stop →</p>
-            </button>
-          </div>
-
-          {selectedLodging ? (
-            <div className="mt-4 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4">
-              <p className="text-xs font-black uppercase tracking-wider text-emerald-300">
-                ✓ Your lodging
-              </p>
-              <p className="mt-2 text-lg font-black">{selectedLodging.name}</p>
-              <p className="mt-1 text-sm text-white/65">
-                {selectedLodging.address || stop.location}
-              </p>
-
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => navigateToLodging(stop)}
-                  className="rounded-xl bg-blue-600 px-4 py-3 font-black hover:bg-blue-500"
-                >
-                  🧭 Navigate to My Lodging
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openLodgingEditor(stop, selectedLodging.kind)}
-                  className="rounded-xl border border-white/15 bg-black/20 px-4 py-3 font-black hover:bg-black/35"
-                >
-                  Change Lodging
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => openLodgingEditor(stop, "Hotels & Motels")}
-              className="mt-4 w-full rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-4 py-3 font-black text-cyan-100 hover:bg-cyan-400/15"
-            >
-              + Add My Lodging for Navigation
-            </button>
-          )}
-
-          <p className="mt-3 text-xs text-white/45">
-            After booking, add the property you chose. TrippinDays will save it as this night's navigation destination.
-          </p>
-        </div>
-      );
-    })}
-  </div>
-)}
-
-{bookingChoice && (
-  <div
-    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-    role="dialog"
-    aria-modal="true"
-    aria-label="Lodging booking details"
-    onClick={() => setBookingChoice(null)}
-  >
-    <div
-      className="w-full max-w-lg rounded-3xl border border-white/15 bg-[#0b1b2f] p-6 shadow-2xl"
-      onClick={(event) => event.stopPropagation()}
-    >
-      <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
-        {bookingChoice.stop.stage}
-      </p>
-
-      <h3 className="mt-2 text-2xl font-black">
-        {bookingChoice.kind}
-      </h3>
-
-      <div className="mt-5 space-y-3 rounded-2xl bg-black/25 p-4">
-        <p className="font-bold">📍 {bookingChoice.stop.location}</p>
-
-        {bookingChoice.stop.checkIn && (
-          <p className="font-bold">
-            📅 Check-in: {formatBookingDate(bookingChoice.stop.checkIn)}
-          </p>
-        )}
-
-        {bookingChoice.stop.checkOut && (
-          <p className="font-bold">
-            📅 Check-out: {formatBookingDate(bookingChoice.stop.checkOut)}
-          </p>
-        )}
-
-        <p className="font-bold">👥 Travelers: {travelers}</p>
-      </div>
-
-      <p className="mt-4 text-sm leading-6 text-white/65">
-        Expedia will open with this overnight stop, dates, and traveler count already filled in through the TrippinDays affiliate booking link.
-      </p>
-
-      <p className="mt-3 rounded-xl bg-cyan-400/10 p-3 text-sm font-bold text-cyan-100">
-        After you choose a property, return to TrippinDays and use “Add My Lodging for Navigation.” TrippinDays will then guide you directly to that hotel, motel, campground, cabin, or lodge.
-      </p>
-
-      <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/5 p-4">
-        <p className="text-sm font-black text-amber-200">
-          No Expedia matches?
-        </p>
-        <p className="mt-1 text-xs leading-5 text-white/55">
-          Try a broader Expedia search first so TrippinDays can still receive affiliate credit. If that still does not work, use Maps to find lodging near this overnight area.
-        </p>
-
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => {
-              const nearbyUrl = buildNearbyExpediaUrl(bookingChoice.stop);
-              window.open(nearbyUrl, "_blank", "noopener,noreferrer");
-            }}
-            className="rounded-xl border border-amber-300/25 bg-black/20 px-4 py-3 text-sm font-black hover:bg-black/35"
-          >
-            Search Nearby on Expedia →
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              const mapsUrl = buildMapsLodgingUrl(
-                bookingChoice.stop,
-                bookingChoice.kind
-              );
-              window.open(mapsUrl, "_blank", "noopener,noreferrer");
-            }}
-            className="rounded-xl border border-white/15 bg-black/20 px-4 py-3 text-sm font-black hover:bg-black/35"
-          >
-            Find Nearby in Maps →
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <button
-          type="button"
-          onClick={() => setBookingChoice(null)}
-          className="rounded-2xl border border-white/15 px-5 py-3 font-black hover:bg-white/10"
-        >
-          Back
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            const expediaUrl = buildExpediaHotelUrl(bookingChoice.stop);
-            window.open(expediaUrl, "_blank", "noopener,noreferrer");
-            setBookingChoice(null);
-          }}
-          className="rounded-2xl bg-sky-500 px-5 py-3 font-black text-white hover:bg-sky-400"
-        >
-          Continue to Expedia →
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-{lodgingEditor && (
-  <div
-    className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4"
-    role="dialog"
-    aria-modal="true"
-    aria-label="Add lodging for navigation"
-    onClick={() => setLodgingEditor(null)}
-  >
-    <div
-      className="w-full max-w-lg rounded-3xl border border-white/15 bg-[#0b1b2f] p-6 shadow-2xl"
-      onClick={(event) => event.stopPropagation()}
-    >
-      <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
-        {lodgingEditor.stop.stage}
-      </p>
-      <h3 className="mt-2 text-2xl font-black">Add My Lodging</h3>
-      <p className="mt-2 text-sm leading-6 text-white/60">
-        Enter the property you actually chose. TrippinDays will use it as the navigation destination for this overnight stop.
-      </p>
-
-      <div className="mt-5 space-y-4">
-        <div>
-          <label className="text-xs font-black uppercase tracking-wider text-white/55">
-            Property name
-          </label>
-          <input
-            value={lodgingName}
-            onChange={(event) => setLodgingName(event.target.value)}
-            placeholder="Example: Oxford Suites Boise"
-            className="mt-2 w-full rounded-xl border border-white/15 bg-black/25 px-4 py-3 text-white outline-none focus:border-cyan-300"
-          />
-        </div>
-
-        <div>
-          <label className="text-xs font-black uppercase tracking-wider text-white/55">
-            Street address or location
-          </label>
-          <input
-            value={lodgingAddress}
-            onChange={(event) => setLodgingAddress(event.target.value)}
-            placeholder={`Example: 123 Main St, ${lodgingEditor.stop.location}`}
-            className="mt-2 w-full rounded-xl border border-white/15 bg-black/25 px-4 py-3 text-white outline-none focus:border-cyan-300"
-          />
-        </div>
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <button
-          type="button"
-          onClick={() => setLodgingEditor(null)}
-          className="rounded-2xl border border-white/15 px-5 py-3 font-black hover:bg-white/10"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          disabled={!lodgingName.trim()}
-          onClick={saveLodgingSelection}
-          className="rounded-2xl bg-emerald-500 px-5 py-3 font-black text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Save & Use for Navigation
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-     
-    </div>
-    
-  );
-}
-
-function InfoCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-black/20 p-4">
-      <p className="text-xs font-bold uppercase tracking-wider text-white/45">
-        {label}
-      </p>
-      <p className="mt-2 font-black">{value}</p>
-    </div>
-  );
-}
-
-function LoadingPanel() {
-  return (
-    <section className="rounded-3xl border border-sky-400/20 bg-sky-500/10 p-10 text-center">
-      <div className="animate-bounce text-7xl">🧭</div>
-      <h1 className="mt-5 text-4xl font-black">Finding Your Best Adventure</h1>
-
-      <div className="mx-auto mt-8 max-w-md space-y-3 text-left text-lg">
-        <p>🧠 Understanding your request</p>
-        <p>📍 Comparing destinations</p>
-        <p>💰 Matching your budget</p>
-        <p>🚗 Estimating the drive</p>
-        <p>🌤️ Checking live weather</p>
-        <p>🎵 Building RoadTunes suggestions</p>
-      </div>
-    </section>
-  );
-}
-
-function getValue(text: string, label: string) {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = text.match(new RegExp(`^${escaped}:\\s*(.+)$`, "im"));
-  return match?.[1]?.trim() || "";
-}
-
-function parseOvernightStops(
-  plan: string,
-  tripStartDate: string,
-  _finalDestination: string
-): OvernightStop[] {
-  const lines = plan
-    .replace(/\r/g, "")
-    .split("\n")
-    .map((line) =>
-      line
-        .trim()
-        .replace(/^#{1,6}\s*/, "")
-        .replace(/^\*\*(.+)\*\*$/, "$1")
-    )
-    .filter(Boolean);
-
-  const stops: OvernightStop[] = [];
-  let currentDay = "";
-  let currentDayNumber: number | null = null;
-  let overnightNumber = 0;
-
-  for (const line of lines) {
-    const dayMatch = line.match(/^day\s*(\d+)\b(.*)$/i);
-
-    if (dayMatch) {
-      currentDayNumber = Number(dayMatch[1]);
-      const extra = dayMatch[2]?.replace(/^[-–—:\s]+/, "").trim();
-      currentDay = extra
-        ? `Day ${currentDayNumber} — ${extra}`
-        : `Day ${currentDayNumber}`;
-    }
-
-    const tonightMatch = line.match(/^tonight\s+in\s+(.+?)[:.]?$/i);
-
-    if (tonightMatch) {
-      overnightNumber += 1;
-
-      const checkIn =
-        tripStartDate && currentDayNumber
-          ? addCalendarDays(tripStartDate, currentDayNumber - 1)
-          : "";
-
-      const checkOut =
-        tripStartDate && currentDayNumber
-          ? addCalendarDays(tripStartDate, currentDayNumber)
-          : "";
-
-      stops.push({
-        stage: currentDay || `Overnight Stop ${overnightNumber}`,
-        location: tonightMatch[1].replace(/[:.]$/, "").trim(),
-        dayNumber: currentDayNumber,
-        checkIn,
-        checkOut,
-      });
-    }
-  }
-
-  // Only render lodging that the itinerary explicitly marks with
-  // "TONIGHT IN ...". Do not manufacture an extra stay from the trip's
-  // final destination. This prevents a Friday-Sunday weekend trip from
-  // incorrectly showing a third (Sunday-night) lodging card after the
-  // traveler is already scheduled to return home.
-  return stops;
-}
-
-function overnightStayLabel(stop: OvernightStop): string {
-  const datePart = stop.stage
-    .replace(/^Day\s*\d+\s*[—–-]?\s*/i, "")
-    .trim();
-
-  if (datePart && !/^Day\s*\d+$/i.test(stop.stage)) {
-    return `${datePart} — ${stop.location}`;
-  }
-
-  return `Stay — ${stop.location}`;
-}
-
-function getAdultCount(travelers: string): number {
-  const value = travelers.toLowerCase();
-
-  const explicitAdults = value.match(/(\d+)\s*adults?/i);
-  if (explicitAdults) return Math.max(1, Number(explicitAdults[1]));
-
-  if (value.includes("couple")) return 2;
-  if (value.includes("just me") || value.includes("solo")) return 1;
-  if (value.includes("me and my dog")) return 1;
-  if (value.includes("friends")) return 2;
-  if (value.includes("family")) return 2;
-
-  const leadingNumber = value.match(/^\s*(\d+)\b/);
-  if (leadingNumber) return Math.max(1, Number(leadingNumber[1]));
-
-  return 1;
-}
-
-function addCalendarDays(dateText: string, days: number): string {
-  const match = dateText.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return "";
-
-  const date = new Date(
-    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
-  );
-
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-function formatBookingDate(dateText: string): string {
-  const match = dateText.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return dateText;
-
-  const date = new Date(
-    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
-  );
-
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(date);
-}
-
-function parsePlan(plan: string, fallbackDestination: string): Section[] {
-  const lines = plan
-    .replace(/\r/g, "")
-    .split("\n")
-    .map((line) =>
-      line
-        .trim()
-        .replace(/^#{1,6}\s*/, "")
-        .replace(/^\*\*(.+)\*\*$/, "$1")
-    )
-    .filter(Boolean);
-
-  if (!lines.length) return [];
-
-  const sections: Section[] = [];
-  let current: Section | null = null;
-
-  for (const raw of lines) {
-    const line = raw.trim();
-
-    if (isHeading(line)) {
-      if (current && current.lines.length) sections.push(current);
-
-      const title = cleanHeading(line);
-
-      current = {
-        title,
-        emoji: chooseEmoji(title),
-        lines: [],
-        navigationQuery: navigationQuery(title),
-      };
-
-      continue;
-    }
-
-    if (!current) {
-      current = {
-        title: fallbackDestination || "Adventure Overview",
-        emoji: "🚗",
-        lines: [],
-        navigationQuery: fallbackDestination || null,
-      };
-    }
-
-    current.lines.push(line.replace(/^[-•]\s*/, ""));
-  }
-
-  if (current) sections.push(current);
-
-  const useful = sections
-    .filter((section) => section.lines.length)
-    .slice(0, 12);
-
-  return useful.length
-    ? useful
-    : [
-        {
-          title: fallbackDestination || "Your Adventure",
-          emoji: "🚗",
-          lines,
-          navigationQuery: fallbackDestination || null,
-        },
-      ];
-}
-
-function isHeading(line: string) {
-  return (
-    /^\d{1,2}(:\d{2})?\s*(AM|PM)?\s*[-–—:]/i.test(line) ||
-    /^(morning|afternoon|evening|breakfast|lunch|dinner|departure|arrival|return|stop\s*\d+|day\s*\d+|tonight\s+in|hotel\s*\/?\s*motel|campground\s*\/?\s*rv|cabin\s*\/?\s*alternative|roadtunes|weather|cost|budget|check before leaving)/i.test(
-      line
-    ) ||
-    (line.length < 70 && /:$/.test(line))
-  );
-}
-
-function cleanHeading(line: string) {
-  return line.replace(/:$/, "").replace(/^\d+\.\s*/, "").trim();
-}
-
-function navigationQuery(title: string) {
-  const cleaned = title
-    .replace(/^\d{1,2}(:\d{2})?\s*(AM|PM)?\s*[-–—:]\s*/i, "")
-    .replace(
-      /^(stop\s*\d+|morning|afternoon|evening|breakfast|lunch|dinner|departure|arrival)\s*[-–—:]\s*/i,
-      ""
-    )
-    .trim();
-
-  if (
-    !cleaned ||
-    /^(weather|roadtunes|cost|budget|check before leaving|return home)$/i.test(
-      cleaned
-    )
-  ) {
-    return null;
-  }
-
-  return cleaned;
-}
-
-function chooseEmoji(title: string) {
-  const value = title.toLowerCase();
-
-  if (/breakfast|lunch|dinner|food/.test(value)) return "🍽️";
-  if (/waterfall|falls/.test(value)) return "💦";
-  if (/ghost|historic/.test(value)) return "👻";
-  if (/church|worship|cathedral|temple/.test(value)) return "⛪";
-  if (/hike|trail|walk/.test(value)) return "🥾";
-  if (/weather|check before/.test(value)) return "🌤️";
-  if (/music|roadtunes|song/.test(value)) return "🎵";
-  if (/cost|budget/.test(value)) return "💵";
-  if (/return|home/.test(value)) return "🏠";
-
-  return "📍";
-}
-
-function decorateLine(line: string) {
-  if (/^(estimated|cost|price|budget)/i.test(line))
-    return <>💵 {line}</>;
-
-  if (/^(drive|distance|travel|depart|arrive)/i.test(line))
-    return <>🚗 {line}</>;
-
-  if (/^(why|reason|best|highlight)/i.test(line))
-    return <>⭐ {line}</>;
-
-  if (/^(warning|alert|check|closure)/i.test(line))
-    return <>⚠️ {line}</>;
-
-  
-}
-function formatTemperature(value: number | null) {
-  return value === null ? "Unavailable" : `${Math.round(value)}°F`;
-}
-

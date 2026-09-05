@@ -13,17 +13,19 @@ export default function LoginPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
 
-  setRedirectTo(params.get("redirect") || "/");
+    setRedirectTo(params.get("redirect") || "/");
 
-  if (params.get("mode") === "signup") {
-    setMode("signup");
-  }
-}, []);
+    if (params.get("mode") === "signup") {
+      setMode("signup");
+    }
+  }, []);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
     setLoading(true);
     setMessage("");
 
@@ -47,12 +49,13 @@ useEffect(() => {
       setMessage(
         "Account created. Check your email to confirm your account, then sign in."
       );
+
       setMode("signin");
       setLoading(false);
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -63,7 +66,26 @@ useEffect(() => {
       return;
     }
 
-    window.location.href = redirectTo;
+    if (!data.user || !data.session) {
+      setMessage("Sign-in succeeded, but no login session was created.");
+      setLoading(false);
+      return;
+    }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session) {
+      setMessage(
+        "You signed in, but TrippinDays could not save your login session."
+      );
+      setLoading(false);
+      return;
+    }
+
+    window.location.replace(redirectTo);
   }
 
   return (
@@ -127,6 +149,7 @@ useEffect(() => {
         <form onSubmit={handleSubmit} className="mt-7 space-y-4">
           <label className="block">
             <span className="text-sm font-bold text-white/70">Email</span>
+
             <input
               type="email"
               required
@@ -140,6 +163,7 @@ useEffect(() => {
 
           <label className="block">
             <span className="text-sm font-bold text-white/70">Password</span>
+
             <input
               type="password"
               required

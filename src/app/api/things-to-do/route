@@ -1,0 +1,133 @@
+import OpenAI from "openai";
+import { NextResponse } from "next/server";
+
+export const runtime = "nodejs";
+
+function cleanItems(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter(
+      (item): item is string =>
+        typeof item === "string" && item.trim().length > 0
+    )
+    .map((item) => item.trim())
+    .slice(0, 8);
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+
+    const destination =
+      typeof body?.destination === "string"
+        ? body.destination.trim()
+        : "";
+
+    const summary =
+      typeof body?.summary === "string"
+        ? body.summary.trim()
+        : "";
+
+    const plan =
+      typeof body?.plan === "string"
+        ? body.plan.trim()
+        : "";
+
+    if (!destination) {
+      return NextResponse.json(
+        { error: "Destination is required." },
+        { status: 400 }
+      );
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "OPENAI_API_KEY is not configured." },
+        { status: 500 }
+      );
+    }
+
+    const openai = new OpenAI({ apiKey });
+
+    const prompt = `
+You are the destination activity finder for TrippinDays.
+
+DESTINATION:
+${destination}
+
+TRIP SUMMARY:
+${summary || "Not provided"}
+
+ITINERARY CONTEXT:
+${plan.slice(0, 3000) || "Not provided"}
+
+Return ONLY valid JSON in exactly this shape:
+{
+  "thingsToDo": [
+    "Specific real destination activity or attraction",
+    "Specific real destination activity or attraction",
+    "Specific real destination activity or attraction",
+    "Specific real destination activity or attraction",
+    "Specific real destination activity or attraction",
+    "Specific real destination activity or attraction"
+  ]
+}
+
+Rules:
+- Return exactly 6 items.
+- Every item must be specific to ${destination} or its immediate surrounding area.
+- Prefer named real attractions, parks, viewpoints, museums, neighborhoods, local experiences, scenic drives, food experiences, trails, or cultural highlights.
+- Do not give generic filler such as "go hiking", "eat local food", or "visit a museum".
+- Do not invent places or businesses.
+- Keep each item concise enough for a trip card.
+`.trim();
+
+    const response = await openai.responses.create({
+      model: "gpt-5.6-luna",
+      reasoning: { effort: "none" },
+      text: { verbosity: "low" },
+      input: prompt,
+    });
+
+    const output = response.output_text || "";
+    const firstBrace = output.indexOf("{");
+    const lastBrace = output.lastIndexOf("}");
+
+    if (firstBrace === -1 || lastBrace === -1) {
+      throw new Error("Things To Do response did not contain JSON.");
+    }
+
+    const parsed = JSON.parse(
+      output
+        .slice(firstBrace, lastBrace + 1)
+        .replace(/,\s*}/g, "}")
+        .replace(/,\s*]/g, "]")
+    );
+
+    const thingsToDo = cleanItems(parsed?.thingsToDo);
+
+    if (thingsToDo.length === 0) {
+      throw new Error("No destination ideas were returned.");
+    }
+
+    return NextResponse.json({
+      destination,
+      thingsToDo,
+    });
+  } catch (error) {
+    console.error("Things To Do route error:", error);
+
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Could not load destination ideas.",
+      },
+      { status: 500 }
+    );
+  }
+}
