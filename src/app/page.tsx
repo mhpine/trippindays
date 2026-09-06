@@ -14,60 +14,657 @@ type TripCard = {
   prompt: string;
 };
 
-const tripCards: TripCard[] = [
-  {
-    label: "DAY TRIP",
-    title: "Waterfalls & Burgers",
-    description:
-      "Scenic waterfalls, short hikes, and a great local meal.",
-    duration: "6 hrs",
-    distance: "92 mi",
-    cost: "~$78",
-    image:
-      "https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=1200&q=85",
-    prompt:
-      "Plan me a day trip with waterfalls, short hikes, scenic views, and a great local burger.",
-  },
-  {
-    label: "OVERNIGHT",
-    title: "Coastal Escape",
-    description:
-      "Ocean views, fresh seafood, and unforgettable sunsets.",
-    duration: "2 days",
-    distance: "160 mi",
-    cost: "~$196",
-    image:
-      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=85",
-    prompt:
-      "Plan me an overnight coastal escape with ocean scenery, seafood, and a beautiful sunset.",
-  },
-  {
-    label: "ADVENTURE",
-    title: "Hike & Scenic Drive",
-    description:
-      "Big views, fresh air, and an easy escape from home.",
-    duration: "5 hrs",
-    distance: "60 mi",
-    cost: "~$40",
-    image:
-      "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=85",
-    prompt:
-      "Plan me a scenic drive with a beautiful hike, mountain views, and outdoor stops.",
-  },
-  {
-    label: "FAMILY FUN",
-    title: "Family Adventure Day",
-    description:
-      "Kid-friendly stops, easy hikes, and places everyone loves.",
-    duration: "8 hrs",
-    distance: "110 mi",
-    cost: "~$124",
-    image:
-      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=85",
-    prompt:
-      "Plan a family-friendly day adventure with easy outdoor activities, scenic stops, and food.",
-  },
-];
+const REGIONAL_TRIP_IMAGES = {
+  waterfalls:
+    "https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=1200&q=85",
+  coast:
+    "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=85",
+  mountains:
+    "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=85",
+  family:
+    "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=85",
+};
+
+function getRegionalTripCards(location: string): TripCard[] {
+  const place = location.toLowerCase();
+
+  const hasAny = (...values: string[]) =>
+    values.some((value) => place.includes(value));
+
+  // Ohio and the Great Lakes region
+  if (
+    hasAny(
+      "ohio",
+      ", oh",
+      "michigan",
+      ", mi",
+      "indiana",
+      ", in",
+      "wisconsin",
+      ", wi",
+      "illinois",
+      ", il"
+    )
+  ) {
+    return [
+      {
+        label: "DAY TRIP",
+        title: "Waterfalls & Gorge Country",
+        description:
+          "Find a real nearby gorge, waterfall, forest trail, and a memorable local meal.",
+        duration: "6–8 hrs",
+        distance: "≤ 120 mi",
+        cost: "~$60–$110",
+        image: REGIONAL_TRIP_IMAGES.waterfalls,
+        prompt:
+          "Choose a real day-trip destination within about 120 miles of my starting location featuring waterfalls, a gorge or dramatic rock formations, short hikes, scenic overlooks, and a great local meal. Prefer iconic regional places such as Hocking Hills when practical, but choose the best option for my actual starting location.",
+      },
+      {
+        label: "OVERNIGHT",
+        title: "Great Lakes Escape",
+        description:
+          "Lakefront scenery, beaches, lighthouses, sunsets, and a relaxed overnight getaway.",
+        duration: "2 days",
+        distance: "≤ 200 mi",
+        cost: "~$160–$260",
+        image: REGIONAL_TRIP_IMAGES.coast,
+        prompt:
+          "Plan a real overnight Great Lakes escape within a practical drive of my starting location with lakefront scenery, a beach or shoreline walk, lighthouse or harbor stop when available, local food, sunset, and one overnight stay.",
+      },
+      {
+        label: "ADVENTURE",
+        title: "Forest Trails & Scenic Drive",
+        description:
+          "Fresh air, wooded trails, overlooks, and a scenic regional drive.",
+        duration: "5–8 hrs",
+        distance: "≤ 140 mi",
+        cost: "~$45–$95",
+        image: REGIONAL_TRIP_IMAGES.mountains,
+        prompt:
+          "Choose a real scenic destination within about 140 miles of my starting location with forest trails, overlooks, interesting roads, state or national park scenery, and worthwhile stops along the way.",
+      },
+      {
+        label: "FAMILY FUN",
+        title: "Small Town & Family Adventure",
+        description:
+          "A fun regional outing with an attraction, easy outdoor stop, and good food.",
+        duration: "8 hrs",
+        distance: "≤ 120 mi",
+        cost: "~$80–$150",
+        image: REGIONAL_TRIP_IMAGES.family,
+        prompt:
+          "Plan a family-friendly day trip within about 120 miles of my starting location using real nearby attractions, an easy outdoor activity, a charming town or local landmark, and a good place to eat.",
+      },
+    ];
+  }
+
+  // Pacific Northwest
+  if (
+    hasAny(
+      "washington",
+      ", wa",
+      "oregon",
+      ", or",
+      "idaho",
+      ", id"
+    )
+  ) {
+    return [
+      {
+        label: "DAY TRIP",
+        title: "Waterfalls & Mountain Roads",
+        description:
+          "A nearby waterfall, forest walk, scenic viewpoint, and memorable local food stop.",
+        duration: "6–8 hrs",
+        distance: "≤ 120 mi",
+        cost: "~$60–$110",
+        image: REGIONAL_TRIP_IMAGES.waterfalls,
+        prompt:
+          "Choose a real Pacific Northwest day trip within about 120 miles of my starting location with a waterfall, short forest hike, mountain or river scenery, and a great local meal.",
+      },
+      {
+        label: "OVERNIGHT",
+        title: "Coast, Islands & Sunset",
+        description:
+          "Ocean or island scenery, seafood, shoreline stops, and an overnight escape.",
+        duration: "2 days",
+        distance: "≤ 220 mi",
+        cost: "~$180–$290",
+        image: REGIONAL_TRIP_IMAGES.coast,
+        prompt:
+          "Plan a real overnight coastal or island escape within a practical drive of my starting location with shoreline scenery, seafood, a sunset stop, and one overnight stay. If the coast is not practical, choose the strongest lake or river alternative.",
+      },
+      {
+        label: "ADVENTURE",
+        title: "Peak Views & Scenic Drive",
+        description:
+          "Big landscapes, a beautiful hike, overlooks, and an unforgettable drive.",
+        duration: "5–8 hrs",
+        distance: "≤ 150 mi",
+        cost: "~$45–$95",
+        image: REGIONAL_TRIP_IMAGES.mountains,
+        prompt:
+          "Choose a real scenic drive and hiking adventure within about 150 miles of my starting location with mountain, volcano, alpine lake, gorge, or dramatic forest scenery.",
+      },
+      {
+        label: "FAMILY FUN",
+        title: "Wildlife & Family Adventure",
+        description:
+          "Easy outdoor fun, wildlife or a local attraction, and food everyone can enjoy.",
+        duration: "8 hrs",
+        distance: "≤ 120 mi",
+        cost: "~$80–$150",
+        image: REGIONAL_TRIP_IMAGES.family,
+        prompt:
+          "Plan a family-friendly day adventure within about 120 miles of my starting location with an easy outdoor stop, wildlife or a worthwhile attraction, scenic views, and a good meal.",
+      },
+    ];
+  }
+
+  // California and the West Coast
+  if (hasAny("california", ", ca", "nevada", ", nv")) {
+    return [
+      {
+        label: "DAY TRIP",
+        title: "Canyons, Falls & Great Food",
+        description:
+          "A nearby natural landmark, short hike, scenic road, and standout local meal.",
+        duration: "6–8 hrs",
+        distance: "≤ 120 mi",
+        cost: "~$70–$120",
+        image: REGIONAL_TRIP_IMAGES.waterfalls,
+        prompt:
+          "Choose a real day trip within about 120 miles of my starting location with a canyon, waterfall, redwood grove, desert feature, or other major natural landmark plus a short hike and great local food.",
+      },
+      {
+        label: "OVERNIGHT",
+        title: "Pacific Coast Escape",
+        description:
+          "Ocean views, coastal towns, sunset, seafood, and one memorable overnight.",
+        duration: "2 days",
+        distance: "≤ 220 mi",
+        cost: "~$190–$320",
+        image: REGIONAL_TRIP_IMAGES.coast,
+        prompt:
+          "Plan a real overnight Pacific coast escape within a practical drive of my starting location with ocean scenery, a coastal town, sunset, local food, and one overnight stay. If the coast is not practical, choose a strong mountain or desert overnight instead.",
+      },
+      {
+        label: "ADVENTURE",
+        title: "High Country & Scenic Drive",
+        description:
+          "Mountain, desert, or redwood scenery with a hike and unforgettable viewpoints.",
+        duration: "5–8 hrs",
+        distance: "≤ 150 mi",
+        cost: "~$50–$100",
+        image: REGIONAL_TRIP_IMAGES.mountains,
+        prompt:
+          "Choose a real scenic drive and hiking adventure within about 150 miles of my starting location featuring mountains, desert, redwoods, alpine scenery, or dramatic overlooks.",
+      },
+      {
+        label: "FAMILY FUN",
+        title: "California Family Day",
+        description:
+          "A regional attraction, easy outdoor stop, scenic break, and food everyone can enjoy.",
+        duration: "8 hrs",
+        distance: "≤ 120 mi",
+        cost: "~$90–$170",
+        image: REGIONAL_TRIP_IMAGES.family,
+        prompt:
+          "Plan a family-friendly day trip within about 120 miles of my starting location with a real attraction, easy outdoor activity, scenic stop, and good food.",
+      },
+    ];
+  }
+
+  // Mountain West
+  if (
+    hasAny(
+      "montana",
+      ", mt",
+      "wyoming",
+      ", wy",
+      "colorado",
+      ", co",
+      "utah",
+      ", ut"
+    )
+  ) {
+    return [
+      {
+        label: "DAY TRIP",
+        title: "Canyons & Waterfalls",
+        description:
+          "Rocky scenery, waterfalls or canyons, short trails, and a worthwhile food stop.",
+        duration: "6–8 hrs",
+        distance: "≤ 130 mi",
+        cost: "~$60–$110",
+        image: REGIONAL_TRIP_IMAGES.waterfalls,
+        prompt:
+          "Choose a real Mountain West day trip within about 130 miles of my starting location with canyons, waterfalls, hot springs, alpine scenery, or dramatic rock formations plus a short hike and local food.",
+      },
+      {
+        label: "OVERNIGHT",
+        title: "Mountain Town Escape",
+        description:
+          "A scenic mountain town, sunset views, local food, and an overnight stay.",
+        duration: "2 days",
+        distance: "≤ 220 mi",
+        cost: "~$170–$290",
+        image: REGIONAL_TRIP_IMAGES.coast,
+        prompt:
+          "Plan a real overnight mountain-town escape within a practical drive of my starting location with scenic roads, viewpoints, local food, sunset, and one overnight stay.",
+      },
+      {
+        label: "ADVENTURE",
+        title: "Alpine Trail & Scenic Byway",
+        description:
+          "Big mountain views, a memorable trail, and one of the region's great drives.",
+        duration: "5–8 hrs",
+        distance: "≤ 160 mi",
+        cost: "~$45–$95",
+        image: REGIONAL_TRIP_IMAGES.mountains,
+        prompt:
+          "Choose a real alpine, canyon, desert, or national-park-style adventure within about 160 miles of my starting location with a scenic byway, worthwhile hike, and major viewpoints.",
+      },
+      {
+        label: "FAMILY FUN",
+        title: "Western Family Adventure",
+        description:
+          "Easy trails, wildlife or history, scenic stops, and a fun local meal.",
+        duration: "8 hrs",
+        distance: "≤ 130 mi",
+        cost: "~$80–$150",
+        image: REGIONAL_TRIP_IMAGES.family,
+        prompt:
+          "Plan a family-friendly western adventure within about 130 miles of my starting location with easy outdoor activities, wildlife or history, scenic stops, and good food.",
+      },
+    ];
+  }
+
+  // Southwest
+  if (
+    hasAny(
+      "arizona",
+      ", az",
+      "new mexico",
+      ", nm",
+      "texas",
+      ", tx",
+      "oklahoma",
+      ", ok"
+    )
+  ) {
+    return [
+      {
+        label: "DAY TRIP",
+        title: "Canyons, Springs & Local Eats",
+        description:
+          "A nearby natural wonder, easy trail, scenic road, and standout regional food.",
+        duration: "6–8 hrs",
+        distance: "≤ 130 mi",
+        cost: "~$60–$115",
+        image: REGIONAL_TRIP_IMAGES.waterfalls,
+        prompt:
+          "Choose a real Southwest day trip within about 130 miles of my starting location with a canyon, desert spring, swimming hole, waterfall, cave, or dramatic rock formation plus a short hike and great regional food.",
+      },
+      {
+        label: "OVERNIGHT",
+        title: "Desert Sunset Escape",
+        description:
+          "Open roads, unforgettable sunset scenery, a character-filled town, and one overnight.",
+        duration: "2 days",
+        distance: "≤ 230 mi",
+        cost: "~$160–$280",
+        image: REGIONAL_TRIP_IMAGES.coast,
+        prompt:
+          "Plan a real overnight Southwest escape within a practical drive of my starting location featuring desert, canyon, hill-country, or mountain scenery, a great sunset, local food, and one overnight stay.",
+      },
+      {
+        label: "ADVENTURE",
+        title: "Red Rock & Scenic Drive",
+        description:
+          "Big skies, dramatic geology, a scenic road, and an adventurous trail.",
+        duration: "5–8 hrs",
+        distance: "≤ 160 mi",
+        cost: "~$45–$95",
+        image: REGIONAL_TRIP_IMAGES.mountains,
+        prompt:
+          "Choose a real scenic-drive adventure within about 160 miles of my starting location with desert, red rock, canyon, mountain, or hill-country scenery and a worthwhile hike.",
+      },
+      {
+        label: "FAMILY FUN",
+        title: "Southwest Family Adventure",
+        description:
+          "A fun attraction, easy outdoor stop, local character, and food for the whole crew.",
+        duration: "8 hrs",
+        distance: "≤ 130 mi",
+        cost: "~$80–$155",
+        image: REGIONAL_TRIP_IMAGES.family,
+        prompt:
+          "Plan a family-friendly day trip within about 130 miles of my starting location with a real attraction, easy outdoor activity, regional history or culture, and good food.",
+      },
+    ];
+  }
+
+  // Northeast and Mid-Atlantic
+  if (
+    hasAny(
+      "new york",
+      ", ny",
+      "pennsylvania",
+      ", pa",
+      "new jersey",
+      ", nj",
+      "connecticut",
+      ", ct",
+      "rhode island",
+      ", ri",
+      "massachusetts",
+      ", ma",
+      "vermont",
+      ", vt",
+      "new hampshire",
+      ", nh",
+      "maine",
+      ", me",
+      "maryland",
+      ", md",
+      "delaware",
+      ", de",
+      "virginia",
+      ", va",
+      "west virginia",
+      ", wv"
+    )
+  ) {
+    return [
+      {
+        label: "DAY TRIP",
+        title: "Falls, Gorges & Small Towns",
+        description:
+          "A real nearby waterfall or gorge, scenic walk, historic town, and great local meal.",
+        duration: "6–8 hrs",
+        distance: "≤ 120 mi",
+        cost: "~$60–$115",
+        image: REGIONAL_TRIP_IMAGES.waterfalls,
+        prompt:
+          "Choose a real Northeast or Mid-Atlantic day trip within about 120 miles of my starting location with a waterfall, gorge, forest, scenic walk, historic town, and great local food.",
+      },
+      {
+        label: "OVERNIGHT",
+        title: "Coast, Lakes & Historic Towns",
+        description:
+          "Waterfront scenery, local character, sunset, and an easy overnight getaway.",
+        duration: "2 days",
+        distance: "≤ 210 mi",
+        cost: "~$180–$300",
+        image: REGIONAL_TRIP_IMAGES.coast,
+        prompt:
+          "Plan a real overnight escape within a practical drive of my starting location using the strongest nearby coast, lake, mountain, or historic-town destination with scenic stops, local food, sunset, and one overnight stay.",
+      },
+      {
+        label: "ADVENTURE",
+        title: "Mountain Trail & Scenic Byway",
+        description:
+          "Forest roads, overlooks, a rewarding hike, and classic regional scenery.",
+        duration: "5–8 hrs",
+        distance: "≤ 150 mi",
+        cost: "~$45–$95",
+        image: REGIONAL_TRIP_IMAGES.mountains,
+        prompt:
+          "Choose a real scenic drive and hiking adventure within about 150 miles of my starting location featuring mountains, forests, overlooks, lakes, or a famous regional byway.",
+      },
+      {
+        label: "FAMILY FUN",
+        title: "History & Family Adventure",
+        description:
+          "A real attraction, easy outdoor stop, history, and food everyone can enjoy.",
+        duration: "8 hrs",
+        distance: "≤ 120 mi",
+        cost: "~$85–$160",
+        image: REGIONAL_TRIP_IMAGES.family,
+        prompt:
+          "Plan a family-friendly day adventure within about 120 miles of my starting location with a real attraction, history or culture, an easy outdoor stop, and good food.",
+      },
+    ];
+  }
+
+  // Southeast and Gulf states
+  if (
+    hasAny(
+      "north carolina",
+      ", nc",
+      "south carolina",
+      ", sc",
+      "georgia",
+      ", ga",
+      "tennessee",
+      ", tn",
+      "kentucky",
+      ", ky",
+      "alabama",
+      ", al",
+      "mississippi",
+      ", ms",
+      "arkansas",
+      ", ar",
+      "louisiana",
+      ", la",
+      "florida",
+      ", fl"
+    )
+  ) {
+    return [
+      {
+        label: "DAY TRIP",
+        title: "Waterfalls, Springs & Southern Eats",
+        description:
+          "A real nearby natural escape, easy trail, scenic stop, and memorable regional food.",
+        duration: "6–8 hrs",
+        distance: "≤ 120 mi",
+        cost: "~$60–$110",
+        image: REGIONAL_TRIP_IMAGES.waterfalls,
+        prompt:
+          "Choose a real Southeast day trip within about 120 miles of my starting location with the strongest nearby waterfall, spring, cave, mountain, river, or nature destination plus a short outdoor activity and great regional food.",
+      },
+      {
+        label: "OVERNIGHT",
+        title: "Coast, Mountains & Southern Towns",
+        description:
+          "Choose the strongest nearby overnight: coast, mountains, lake country, or a character-filled town.",
+        duration: "2 days",
+        distance: "≤ 220 mi",
+        cost: "~$160–$280",
+        image: REGIONAL_TRIP_IMAGES.coast,
+        prompt:
+          "Plan a real overnight Southeast escape within a practical drive of my starting location using the best nearby coast, mountain, lake, historic town, or scenic region with local food, sunset, and one overnight stay.",
+      },
+      {
+        label: "ADVENTURE",
+        title: "Scenic Parkway & Trail",
+        description:
+          "Forest roads, overlooks, rivers, mountains, or coastal scenery with a worthwhile hike.",
+        duration: "5–8 hrs",
+        distance: "≤ 150 mi",
+        cost: "~$45–$95",
+        image: REGIONAL_TRIP_IMAGES.mountains,
+        prompt:
+          "Choose a real scenic drive and outdoor adventure within about 150 miles of my starting location with mountains, forest, river, wetlands, coastline, or a famous scenic parkway when practical.",
+      },
+      {
+        label: "FAMILY FUN",
+        title: "Southern Family Adventure",
+        description:
+          "A fun attraction, easy nature stop, local character, and a meal everyone can enjoy.",
+        duration: "8 hrs",
+        distance: "≤ 120 mi",
+        cost: "~$80–$155",
+        image: REGIONAL_TRIP_IMAGES.family,
+        prompt:
+          "Plan a family-friendly day trip within about 120 miles of my starting location with a real attraction, easy outdoor activity, local history or culture, and good food.",
+      },
+    ];
+  }
+
+  // Alaska
+  if (hasAny("alaska", ", ak")) {
+    return [
+      {
+        label: "DAY TRIP",
+        title: "Glaciers, Wildlife & Big Views",
+        description:
+          "A realistic nearby Alaska adventure built around scenery, wildlife, and accessible roads.",
+        duration: "6–8 hrs",
+        distance: "Regional",
+        cost: "~$80–$160",
+        image: REGIONAL_TRIP_IMAGES.waterfalls,
+        prompt:
+          "Choose a real Alaska day trip practical from my starting location with major scenery, wildlife, glacier, mountain, coast, or river experiences while respecting actual road access and travel time.",
+      },
+      {
+        label: "OVERNIGHT",
+        title: "Alaska Overnight Escape",
+        description:
+          "A scenic two-day getaway with a real reachable destination and unforgettable landscapes.",
+        duration: "2 days",
+        distance: "Regional",
+        cost: "~$220–$380",
+        image: REGIONAL_TRIP_IMAGES.coast,
+        prompt:
+          "Plan a real two-day Alaska escape reachable from my starting location with dramatic scenery, local food, wildlife or outdoor activities, and one overnight stay. Respect Alaska road and ferry realities.",
+      },
+      {
+        label: "ADVENTURE",
+        title: "Alpine Trail & Wilderness Drive",
+        description:
+          "Mountains, tundra, coast, or forest scenery with a practical trail and scenic drive.",
+        duration: "5–8 hrs",
+        distance: "Regional",
+        cost: "~$70–$150",
+        image: REGIONAL_TRIP_IMAGES.mountains,
+        prompt:
+          "Choose a real Alaska scenic drive and hiking adventure practical from my starting location, respecting road access, distance, weather, and daylight.",
+      },
+      {
+        label: "FAMILY FUN",
+        title: "Alaska Family Adventure",
+        description:
+          "Wildlife, easy outdoor fun, a local attraction, and great scenery.",
+        duration: "8 hrs",
+        distance: "Regional",
+        cost: "~$100–$180",
+        image: REGIONAL_TRIP_IMAGES.family,
+        prompt:
+          "Plan a family-friendly Alaska day adventure practical from my starting location with wildlife, an easy outdoor activity, a real local attraction, and good food.",
+      },
+    ];
+  }
+
+  // Hawaii
+  if (hasAny("hawaii", ", hi")) {
+    return [
+      {
+        label: "DAY TRIP",
+        title: "Waterfalls & Island Eats",
+        description:
+          "A real island day trip with waterfalls, viewpoints, short walks, and great local food.",
+        duration: "6–8 hrs",
+        distance: "Island",
+        cost: "~$70–$130",
+        image: REGIONAL_TRIP_IMAGES.waterfalls,
+        prompt:
+          "Choose a real Hawaii day trip on the same island as my starting location with waterfalls, scenic viewpoints, short walks, beaches or volcanic scenery, and great local food.",
+      },
+      {
+        label: "OVERNIGHT",
+        title: "Beach & Sunset Escape",
+        description:
+          "A beautiful island escape with beaches, sunset, local food, and one overnight when practical.",
+        duration: "2 days",
+        distance: "Island",
+        cost: "~$220–$380",
+        image: REGIONAL_TRIP_IMAGES.coast,
+        prompt:
+          "Plan a real overnight Hawaii escape practical from my starting location with beaches, sunset, scenic stops, local food, and one overnight stay. Do not require inter-island travel unless clearly practical.",
+      },
+      {
+        label: "ADVENTURE",
+        title: "Volcano, Ridge & Scenic Drive",
+        description:
+          "Choose the island's strongest nearby trail, volcanic landscape, ridge, or coastal drive.",
+        duration: "5–8 hrs",
+        distance: "Island",
+        cost: "~$55–$110",
+        image: REGIONAL_TRIP_IMAGES.mountains,
+        prompt:
+          "Choose a real Hawaii scenic-drive and hiking adventure on the same island as my starting location with volcanic, ridge, rainforest, waterfall, or coastal scenery.",
+      },
+      {
+        label: "FAMILY FUN",
+        title: "Island Family Adventure",
+        description:
+          "Easy beaches, wildlife or culture, scenic stops, and food everyone can enjoy.",
+        duration: "8 hrs",
+        distance: "Island",
+        cost: "~$90–$170",
+        image: REGIONAL_TRIP_IMAGES.family,
+        prompt:
+          "Plan a family-friendly Hawaii day adventure on the same island as my starting location with an easy beach or nature stop, local culture or wildlife, and great food.",
+      },
+    ];
+  }
+
+  // Central / Plains states and safe fallback for any location we do not recognize.
+  return [
+    {
+      label: "DAY TRIP",
+      title: "Local Nature & Great Food",
+      description:
+        "A real nearby natural attraction, easy walk, scenic stop, and memorable local meal.",
+      duration: "6–8 hrs",
+      distance: "≤ 120 mi",
+      cost: "~$60–$110",
+      image: REGIONAL_TRIP_IMAGES.waterfalls,
+      prompt:
+        "Choose a real day-trip destination within about 120 miles of my starting location with a strong natural attraction, easy outdoor activity, scenic stops, and a great local meal. Make the choice specific to my actual location.",
+    },
+    {
+      label: "OVERNIGHT",
+      title: "Regional Overnight Escape",
+      description:
+        "A real two-day getaway built around the best scenery, town, lake, or attraction near home.",
+      duration: "2 days",
+      distance: "≤ 220 mi",
+      cost: "~$160–$280",
+      image: REGIONAL_TRIP_IMAGES.coast,
+      prompt:
+        "Plan a real overnight escape within a practical drive of my starting location using the strongest nearby lake, river, scenic area, historic town, park, or distinctive regional destination with local food and one overnight stay.",
+    },
+    {
+      label: "ADVENTURE",
+      title: "Scenic Drive & Trail",
+      description:
+        "A location-specific scenic drive, worthwhile trail, viewpoints, and interesting stops.",
+      duration: "5–8 hrs",
+      distance: "≤ 150 mi",
+      cost: "~$45–$95",
+      image: REGIONAL_TRIP_IMAGES.mountains,
+      prompt:
+        "Choose a real scenic drive and outdoor adventure within about 150 miles of my starting location with the strongest scenery and trail options available in my region.",
+    },
+    {
+      label: "FAMILY FUN",
+      title: "Nearby Family Adventure",
+      description:
+        "A real attraction, easy outdoor activity, local character, and good food close to home.",
+      duration: "8 hrs",
+      distance: "≤ 120 mi",
+      cost: "~$80–$150",
+      image: REGIONAL_TRIP_IMAGES.family,
+      prompt:
+        "Plan a family-friendly day trip within about 120 miles of my starting location with a real attraction, easy outdoor stop, something distinctive about the region, and good food.",
+    },
+  ];
+}
 
 export default function TrippinDaysHomeV2() {
   const [startingLocation, setStartingLocation] =
@@ -100,6 +697,8 @@ export default function TrippinDaysHomeV2() {
   );
 
   const [prompt, setPrompt] = useState("");
+
+  const tripCards = getRegionalTripCards(startingLocation);
 
   useEffect(() => {
     const supabase = createClient();
