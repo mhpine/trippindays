@@ -56,16 +56,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Safety lock: this checkout is intentionally TEST-ONLY for now.
-    if (offer.live_mode !== false) {
-      return NextResponse.json(
-        {
-          error:
-            "Safety stop: live Duffel offers cannot be booked from this test checkout.",
-        },
-        { status: 403 }
-      );
-    }
+    
 
     const passengers = Array.isArray(offer.passengers)
       ? offer.passengers.map((passenger: any) => ({

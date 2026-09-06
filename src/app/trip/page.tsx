@@ -5,7 +5,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
-
+import {
+  DuffelCardForm,
+  createThreeDSecureSession,
+  useDuffelCardFormActions,
+} from "@duffel/components";
 
 type AdventureOption = {
   name: string;
@@ -2520,6 +2524,14 @@ function WeatherPanel({
   const [passengerForms, setPassengerForms] = useState<FlightPassengerForm[]>([]);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
+  const [componentClientKey, setComponentClientKey] = useState("");
+  const {
+  ref: cardFormRef,
+  createCardForTemporaryUse,
+} = useDuffelCardFormActions();
+const [cardReady, setCardReady] = useState(false);
+const [temporaryCardId, setTemporaryCardId] = useState("");
+const [threeDSecureSessionId, setThreeDSecureSessionId] = useState("");
   const [orderConfirmation, setOrderConfirmation] =
     useState<FlightOrderConfirmation | null>(null);
   const [orderLoading, setOrderLoading] = useState(false);
@@ -2700,7 +2712,7 @@ function WeatherPanel({
 
       if (offers.length === 0) {
         setFlightError(
-          "No test flights were found for that route. Try a nearby major airport or city."
+          "No flights were found for that route. Try a nearby major airport or city."
         );
       }
     } catch (error) {
@@ -2741,8 +2753,24 @@ function WeatherPanel({
     try {
       setCheckoutLoading(true);
       setCheckoutError("");
+      setComponentClientKey("");
+      setCardReady(false);
+setTemporaryCardId("");
+setThreeDSecureSessionId("");
       setOrderConfirmation(null);
+const keyResponse = await fetch("/api/flights/client-key", {
+  method: "POST",
+});
 
+const keyData = await keyResponse.json();
+
+if (!keyResponse.ok || !keyData?.clientKey) {
+  throw new Error(
+    keyData?.error || "Could not prepare secure flight payment."
+  );
+}
+
+setComponentClientKey(keyData.clientKey);
       const response = await fetch("/api/flights/offer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2755,11 +2783,7 @@ function WeatherPanel({
         throw new Error(data?.error || "Could not refresh this flight offer.");
       }
 
-      if (data?.liveMode !== false) {
-        throw new Error(
-          "Safety stop: TrippinDays will only create Duffel test bookings right now."
-        );
-      }
+     
 
       const passengers = Array.isArray(data?.passengers) ? data.passengers : [];
 
@@ -2769,7 +2793,7 @@ function WeatherPanel({
         totalAmount: data.totalAmount,
         totalCurrency: data.totalCurrency,
         expiresAt: data.expiresAt || null,
-        liveMode: false,
+        liveMode: data.liveMode === true,
         passengers,
       });
 
@@ -2808,7 +2832,7 @@ function WeatherPanel({
     );
   }
 
-  async function createTestFlightOrder() {
+  async function createTestFlightOrder(sessionId?: string) {
     if (!checkoutOffer) return;
 
     const incompletePassenger = passengerForms.find(
@@ -2851,6 +2875,8 @@ function WeatherPanel({
         body: JSON.stringify({
           offerId: checkoutOffer.id,
           passengers: normalizedPassengers,
+          threeDSecureSessionId: sessionId || threeDSecureSessionId,
+          
         }),
       });
 
@@ -3322,7 +3348,7 @@ function WeatherPanel({
                     Pick the flight going to your destination first.
                   </p>
                 </div>
-                <p className="text-xs text-white/45">Duffel test inventory</p>
+                <p className="text-xs text-white/45">Live flight inventory</p>
               </div>
 
               {uniqueOutboundOffers.map((offer) => {
@@ -3550,7 +3576,7 @@ function WeatherPanel({
     className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/85 p-4"
     role="dialog"
     aria-modal="true"
-    aria-label="Duffel test flight checkout"
+    aria-label="Secure flight checkout"
     onClick={() => {
       if (!orderLoading) {
         setCheckoutOffer(null);
@@ -3583,7 +3609,7 @@ function WeatherPanel({
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-black uppercase tracking-widest text-amber-300">
-            Duffel Test Mode
+            Secure Flight Checkout
           </p>
           <h3 className="mt-2 text-3xl font-black">Passenger Checkout</h3>
           <p className="mt-2 text-sm text-white/60">
@@ -3807,6 +3833,49 @@ function WeatherPanel({
                       className="mt-2 w-full rounded-xl border border-white/15 bg-slate-950/70 p-3 text-white"
                     />
                   </label>
+{componentClientKey && (
+  <div className="mt-4">
+    <DuffelCardForm
+      ref={cardFormRef}
+      clientKey={componentClientKey}
+      intent="to-create-card-for-temporary-use"
+      onValidateSuccess={() => setCardReady(true)}
+      onValidateFailure={() => setCardReady(false)}
+      onCreateCardForTemporaryUseSuccess={async (card) => {
+  try {
+    setTemporaryCardId(card.id);
+
+    const session = await createThreeDSecureSession(
+      componentClientKey,
+      card.id,
+      checkoutOffer?.id || "",
+      [],
+      true
+    );
+
+    if (session.status !== "ready_for_payment") {
+      throw new Error("3D Secure verification was not completed.");
+    }
+
+    setThreeDSecureSessionId(session.id);
+    await createTestFlightOrder(session.id);
+  } catch (error) {
+    setCheckoutError(
+      error instanceof Error
+        ? error.message
+        : "Could not verify the payment card."
+    );
+  }
+}}
+onCreateCardForTemporaryUseFailure={(error) => {
+  setTemporaryCardId("");
+  setCheckoutError(
+    error?.message || "Could not prepare the payment card."
+  );
+}}
+    />
+  </div>
+)}
 
                   <label className="text-sm font-bold text-white/80 sm:col-span-2">
                     Passenger phone number
@@ -3842,7 +3911,7 @@ function WeatherPanel({
           </div>
 
           <div className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm leading-6 text-amber-100/85">
-            TEST ONLY: passenger details are sent to Duffel to create this test order. Do not use real passport numbers or payment-card details here.
+            Secure payment is handled by Duffel. TrippinDays does not receive or store your card number.
           </div>
 
           {checkoutError && (
@@ -3853,11 +3922,11 @@ function WeatherPanel({
 
           <button
             type="button"
-            onClick={() => void createTestFlightOrder()}
-            disabled={orderLoading}
+            onClick={() => void createCardForTemporaryUse()}
+            disabled={orderLoading || !cardReady}
             className="mt-5 w-full rounded-xl bg-emerald-500 px-5 py-4 font-black text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {orderLoading ? "Creating Duffel Test Booking..." : "Create TEST Booking →"}
+            {orderLoading ? "Booking Flight..." : "Pay & Book Flight →"}
           </button>
         </>
       )}

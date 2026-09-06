@@ -35,6 +35,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const offerId = body?.offerId;
+    const threeDSecureSessionId = body?.threeDSecureSessionId;
     const passengers: PassengerInput[] = Array.isArray(body?.passengers)
       ? body.passengers
       : [];
@@ -45,7 +46,15 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
+if (
+  !threeDSecureSessionId ||
+  typeof threeDSecureSessionId !== "string"
+) {
+  return NextResponse.json(
+    { error: "A valid 3D Secure payment session is required." },
+    { status: 400 }
+  );
+}
     if (passengers.length < 1 || passengers.length > 9) {
       return NextResponse.json(
         { error: "Between 1 and 9 passengers are required." },
@@ -85,15 +94,23 @@ export async function POST(request: Request) {
 
     // HARD SAFETY LOCK. Remove only when TrippinDays is deliberately ready
     // to sell live airfare and has a live payment/funding flow in place.
-    if (offer?.live_mode !== false) {
-      return NextResponse.json(
-        {
-          error:
-            "Safety stop: this endpoint refuses to create live airline orders.",
-        },
-        { status: 403 }
-      );
-    }
+    if (
+  offer?.live_mode === true &&
+  process.env.DUFFEL_LIVE_BOOKING_ENABLED !== "true"
+) {
+  return NextResponse.json(
+    { error: "Live flight booking is not enabled." },
+    { status: 503 }
+  );
+}
+    if (offer?.live_mode !== true) {
+  return NextResponse.json(
+    {
+      error: "This checkout requires a live Duffel offer.",
+    },
+    { status: 403 }
+  );
+}
 
     const offerPassengerIds = new Set(
       (offer?.passengers || []).map((passenger: any) => passenger.id)
@@ -155,13 +172,14 @@ export async function POST(request: Request) {
         data: {
           type: "instant",
           selected_offers: [offerId],
-          payments: [
-            {
-              type: "balance",
-              amount: totalAmount,
-              currency: totalCurrency,
-            },
-          ],
+         payments: [
+  {
+    type: "card",
+    amount: totalAmount,
+    currency: totalCurrency,
+    three_d_secure_session_id: threeDSecureSessionId,
+  },
+],
           passengers: normalizedPassengers.map((passenger) => ({
             id: passenger.id,
             title: passenger.title,
@@ -173,7 +191,7 @@ export async function POST(request: Request) {
             phone_number: passenger.phoneNumber.trim(),
           })),
           metadata: {
-            source: "trippindays-test-checkout",
+            source: "trippindays-live-checkout",
           },
         },
       }),
@@ -189,7 +207,7 @@ export async function POST(request: Request) {
         {
           error:
             orderPayload?.errors?.[0]?.message ||
-            "Duffel could not create the test order.",
+            "Duffel could not create the flight booking.",
           details: orderPayload,
         },
         { status: orderResponse.status }
@@ -212,7 +230,7 @@ export async function POST(request: Request) {
       liveMode: order?.live_mode === true,
     });
   } catch (error) {
-    console.error("Duffel test order API error:", error);
+    console.error("Duffel order API error:", error);
 
     return NextResponse.json(
       {
