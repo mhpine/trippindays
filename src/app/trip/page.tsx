@@ -2845,7 +2845,7 @@ setComponentClientKey(keyData.clientKey);
     );
 
     if (incompletePassenger) {
-      setCheckoutError("Complete all passenger fields before creating the test booking.");
+      setCheckoutError("Complete all passenger fields before booking this flight.");
       return;
     }
 
@@ -2883,7 +2883,7 @@ setComponentClientKey(keyData.clientKey);
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data?.error || "Duffel could not create the test order.");
+        throw new Error(data?.error || "Duffel could not create the flight booking.");
       }
 
       const confirmation = {
@@ -2918,7 +2918,7 @@ setComponentClientKey(keyData.clientKey);
       }
     } catch (error) {
       setCheckoutError(
-        error instanceof Error ? error.message : "Could not create the Duffel test order."
+        error instanceof Error ? error.message : "Could not create the Duffel flight booking."
       );
     } finally {
       setOrderLoading(false);
@@ -3563,7 +3563,7 @@ setComponentClientKey(keyData.clientKey);
           )}
 
           <p className="border-t border-white/10 pt-3 text-xs leading-5 text-white/45">
-            Test mode only. TrippinDays refreshes the complete Duffel round-trip offer before passenger checkout because airline prices and availability can change.
+            TrippinDays refreshes the complete flight offer before checkout because airline prices and availability can change.
           </p>
         </div>
       )}
@@ -3613,7 +3613,7 @@ setComponentClientKey(keyData.clientKey);
           </p>
           <h3 className="mt-2 text-3xl font-black">Passenger Checkout</h3>
           <p className="mt-2 text-sm text-white/60">
-            This creates a Duffel TEST order only. No real airline ticket or real-money charge is created.
+            Review your passenger information and securely pay for your flight below.
           </p>
         </div>
 
