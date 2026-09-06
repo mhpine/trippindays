@@ -42,6 +42,18 @@ function flattenAirports(places: DuffelPlace[]) {
   return airports;
 }
 
+function rankAirports(airports: DuffelPlace[]) {
+  return [...airports].sort((a, b) => {
+    const aName = `${a.name || ""} ${a.city_name || ""}`.toLowerCase();
+    const bName = `${b.name || ""} ${b.city_name || ""}`.toLowerCase();
+
+    const aInternational = aName.includes("international") ? 1 : 0;
+    const bInternational = bName.includes("international") ? 1 : 0;
+
+    return bInternational - aInternational;
+  });
+}
+
 function result(place?: DuffelPlace) {
   if (!place?.iata_code) return null;
 
@@ -144,16 +156,18 @@ async function resolveToAirport(
 ) {
   // 1. If we already know coordinates, use them first.
   if (coordinates) {
-    const nearby = await searchDuffelNearby(
+    const nearbyAirports = await searchDuffelNearby(
       token,
       coordinates.latitude,
       coordinates.longitude
     );
 
-    if (nearby.length > 0) {
+    if (nearbyAirports.length > 0) {
+      const ranked = rankAirports(nearbyAirports);
+
       return {
-        primary: nearby[0],
-        alternatives: nearby.slice(1, 4),
+        primary: ranked[0],
+        alternatives: ranked.slice(1, 4),
         geoLabel: query,
       };
     }
@@ -163,9 +177,11 @@ async function resolveToAirport(
   const byName = await searchDuffelByName(token, query);
 
   if (byName.length > 0) {
+    const ranked = rankAirports(byName);
+
     return {
-      primary: byName[0],
-      alternatives: byName.slice(1, 4),
+      primary: ranked[0],
+      alternatives: ranked.slice(1, 4),
       geoLabel: query,
     };
   }
@@ -175,17 +191,19 @@ async function resolveToAirport(
 
   if (!geocoded) return null;
 
-  const nearby = await searchDuffelNearby(
+  const geocodedAirports = await searchDuffelNearby(
     token,
     geocoded.latitude,
     geocoded.longitude
   );
 
-  if (nearby.length === 0) return null;
+  if (geocodedAirports.length === 0) return null;
+
+  const ranked = rankAirports(geocodedAirports);
 
   return {
-    primary: nearby[0],
-    alternatives: nearby.slice(1, 4),
+    primary: ranked[0],
+    alternatives: ranked.slice(1, 4),
     geoLabel: geocoded.label,
   };
 }

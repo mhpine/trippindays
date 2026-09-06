@@ -3235,14 +3235,14 @@ setComponentClientKey(keyData.clientKey);
 
 {flightOpen && (
   <div
-    className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/75 p-4"
+   className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/75 p-4"
     role="dialog"
     aria-modal="true"
     aria-label="Flight search"
     onClick={() => setFlightOpen(false)}
   >
     <div
-      className="my-8 w-full max-w-3xl rounded-3xl border border-white/15 bg-[#0b1b2f] p-6 shadow-2xl"
+      className="my-4 w-full max-w-3xl rounded-3xl border border-white/15 bg-[#0b1b2f] p-6 shadow-2xl"
       onClick={(event) => event.stopPropagation()}
     >
       <div className="flex items-start justify-between gap-4">
@@ -3611,10 +3611,10 @@ setComponentClientKey(keyData.clientKey);
           <p className="text-xs font-black uppercase tracking-widest text-amber-300">
             Secure Flight Checkout
           </p>
-          <h3 className="mt-2 text-3xl font-black">Passenger Checkout</h3>
-          <p className="mt-2 text-sm text-white/60">
-            Review your passenger information and securely pay for your flight below.
-          </p>
+         <h3 className="mt-2 text-3xl font-black">Who’s Traveling?</h3>
+<p className="mt-2 text-sm text-white/60">
+  Enter the traveler information exactly as it appears on their government-issued ID.
+</p>
         </div>
 
         <button
@@ -3730,7 +3730,7 @@ setComponentClientKey(keyData.clientKey);
                 key={passenger.id}
                 className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"
               >
-                <h4 className="text-lg font-black">Passenger {index + 1}</h4>
+                <h4 className="text-lg font-black">Traveler {index + 1}</h4>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <label className="text-sm font-bold text-white/80">
@@ -3833,49 +3833,7 @@ setComponentClientKey(keyData.clientKey);
                       className="mt-2 w-full rounded-xl border border-white/15 bg-slate-950/70 p-3 text-white"
                     />
                   </label>
-{componentClientKey && (
-  <div className="mt-4">
-    <DuffelCardForm
-      ref={cardFormRef}
-      clientKey={componentClientKey}
-      intent="to-create-card-for-temporary-use"
-      onValidateSuccess={() => setCardReady(true)}
-      onValidateFailure={() => setCardReady(false)}
-      onCreateCardForTemporaryUseSuccess={async (card) => {
-  try {
-    setTemporaryCardId(card.id);
 
-    const session = await createThreeDSecureSession(
-      componentClientKey,
-      card.id,
-      checkoutOffer?.id || "",
-      [],
-      true
-    );
-
-    if (session.status !== "ready_for_payment") {
-      throw new Error("3D Secure verification was not completed.");
-    }
-
-    setThreeDSecureSessionId(session.id);
-    await createTestFlightOrder(session.id);
-  } catch (error) {
-    setCheckoutError(
-      error instanceof Error
-        ? error.message
-        : "Could not verify the payment card."
-    );
-  }
-}}
-onCreateCardForTemporaryUseFailure={(error) => {
-  setTemporaryCardId("");
-  setCheckoutError(
-    error?.message || "Could not prepare the payment card."
-  );
-}}
-    />
-  </div>
-)}
 
                   <label className="text-sm font-bold text-white/80 sm:col-span-2">
                     Passenger phone number
@@ -3935,6 +3893,7 @@ onCreateCardForTemporaryUseFailure={(error) => {
 )}
 
 {bookingChoice && (
+
   <div
     className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
     role="dialog"
@@ -4037,7 +3996,50 @@ onCreateCardForTemporaryUseFailure={(error) => {
   </div>
 )}
 
+{componentClientKey && (
+<div className="w-full overflow-visible sm:col-span-2">
+  <DuffelCardForm
+    ref={cardFormRef}
+    clientKey={componentClientKey}
+    
+    intent="to-create-card-for-temporary-use"
+    onValidateSuccess={() => setCardReady(true)}
+    onValidateFailure={() => setCardReady(false)}
+    onCreateCardForTemporaryUseSuccess={async (card) => {
+      try {
+        setTemporaryCardId(card.id);
 
+        const session = await createThreeDSecureSession(
+          componentClientKey,
+          card.id,
+          checkoutOffer?.id || "",
+          [],
+          true
+        );
+
+        if (session.status !== "ready_for_payment") {
+          throw new Error("3D Secure verification was not completed.");
+        }
+
+        setThreeDSecureSessionId(session.id);
+        await createTestFlightOrder(session.id);
+      } catch (error) {
+        setCheckoutError(
+          error instanceof Error
+            ? error.message
+            : "Could not verify the payment card."
+        );
+      }
+    }}
+    onCreateCardForTemporaryUseFailure={(error) => {
+      setTemporaryCardId("");
+      setCheckoutError(
+        error?.message || "Could not prepare the payment card."
+      );
+    }}
+  />
+</div>
+)}
 
      
     </div>
