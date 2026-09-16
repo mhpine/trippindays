@@ -1439,63 +1439,66 @@ ${combinedTripRequest}
             </div>
           </a>
 
-          <nav className="hidden items-center gap-4 text-sm font-bold text-white xl:flex">
-            <button
-              onClick={scrollToPlanner}
-              className="transition hover:text-orange-400"
-            >
-              Plan a Trip
-            </button>
+         <nav className="hidden items-center gap-4 text-sm font-bold text-white xl:flex">
+  <button
+    type="button"
+    onClick={scrollToPlanner}
+    className="transition hover:text-orange-400"
+  >
+    Plan Road Trip
+  </button>
 
-            <button
-              onClick={runAiPick}
-              className="transition hover:text-orange-400"
-            >
-              AI Pick
-            </button>
+   <a
+    href="/on-the-water"
+    className="transition hover:text-cyan-300"
+  >
+    On the Water
+  </a>
 
-            <a
-              href="#ideas"
-              className="transition hover:text-orange-400"
-            >
-              Destinations
-            </a>
 
-            <a
-              href="/passport"
-              className="transition hover:text-orange-400"
-            >
-              Passport
-            </a>
+  <a
+    href="#ideas"
+    className="transition hover:text-orange-400"
+  >
+    Destinations
+  </a>
 
-            <a
-              href="/journal"
-              className="transition hover:text-orange-400"
-            >
-              Journal
-            </a>
+ 
+  <a
+    href="/passport"
+    className="transition hover:text-orange-400"
+  >
+    Passport
+  </a>
 
-            <a
-              href="/community"
-              className="transition hover:text-orange-400"
-            >
-              Community
-            </a>
+  <a
+    href="/journal"
+    className="transition hover:text-orange-400"
+  >
+    Journal
+  </a>
 
-            <a
-              href="/premium"
-              className="rounded-lg bg-orange-500 px-3 py-2 font-black text-white transition hover:bg-orange-600"
-            >
-              Premium
-            </a>
+  <a
+    href="/community"
+    className="transition hover:text-orange-400"
+  >
+    Community
+  </a>
 
-            <a
-              href="/saved-trips"
-              className="transition hover:text-orange-400"
-            >
-              My Trips
-            </a>
-          </nav>
+  <a
+    href="/premium"
+    className="rounded-lg bg-orange-500 px-3 py-2 font-black text-white transition hover:bg-orange-600"
+  >
+    Premium
+  </a>
+
+  <a
+    href="/saved-trips"
+    className="transition hover:text-orange-400"
+  >
+    My Trips
+  </a>
+</nav>
 
           <div className="flex items-center gap-2">
             <button
@@ -2026,6 +2029,7 @@ ${combinedTripRequest}
           >
             View More Destinations →
           </button>
+          
         </div>
 
         <div className="mt-8 flex snap-x gap-5 overflow-x-auto pb-4 lg:grid lg:grid-cols-4 lg:overflow-visible">
