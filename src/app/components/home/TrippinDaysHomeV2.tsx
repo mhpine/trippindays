@@ -912,15 +912,10 @@ ${combinedTripRequest}
               onClick={scrollToPlanner}
               className="transition hover:text-orange-400"
             >
-              Plan a Trip
+              Plan Road Trip
             </button>
 
-            <button
-              onClick={runAiPick}
-              className="transition hover:text-orange-400"
-            >
-              AI Pick
-            </button>
+          
 
             <a
               href="#ideas"
@@ -928,7 +923,21 @@ ${combinedTripRequest}
             >
               Destinations
             </a>
-
+            <a
+  href="/on-the-water"
+  className="transition hover:text-cyan-300"
+>
+  On the Water
+</a>
+<button
+  type="button"
+  onClick={() => {
+    window.location.href = "/on-the-water";
+  }}
+  className="transition hover:text-cyan-300"
+>
+  On the Water
+</button>
             <a
               href="/passport"
               className="transition hover:text-orange-400"
