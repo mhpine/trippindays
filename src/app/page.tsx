@@ -1527,6 +1527,17 @@ ${combinedTripRequest}
 )}
           </div>
         </div>
+
+        {/* MOBILE / TABLET ON THE WATER ACCESS */}
+        <div className="border-t border-white/10 px-4 pb-3 pt-2 xl:hidden sm:px-6">
+          <a
+            href="/on-the-water"
+            className="mx-auto flex w-full max-w-[1500px] items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-3 text-sm font-black text-[#062b35] shadow-lg transition hover:bg-cyan-400"
+          >
+            <span aria-hidden="true">🌊</span>
+            <span>On the Water</span>
+          </a>
+        </div>
       </header>
 
       {/* HERO */}
