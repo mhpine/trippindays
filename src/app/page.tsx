@@ -1528,16 +1528,6 @@ ${combinedTripRequest}
           </div>
         </div>
 
-        {/* MOBILE / TABLET ON THE WATER ACCESS */}
-        <div className="border-t border-white/10 px-4 pb-3 pt-2 xl:hidden sm:px-6">
-          <a
-            href="/on-the-water"
-            className="mx-auto flex w-full max-w-[1500px] items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-3 text-sm font-black text-[#062b35] shadow-lg transition hover:bg-cyan-400"
-          >
-            <span aria-hidden="true">🌊</span>
-            <span>On the Water</span>
-          </a>
-        </div>
       </header>
 
       {/* HERO */}
@@ -1977,7 +1967,14 @@ ${combinedTripRequest}
 
       {/* QUICK ACCESS */}
       <section className="mx-auto max-w-[1320px] px-4 pb-3 pt-8 sm:px-5 lg:px-8">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <QuickLink
+            href="/on-the-water"
+            icon="🌊"
+            title="On the Water"
+            text="Find the best water conditions near you."
+          />
+
           <QuickLink
             href="/passport"
             icon="🛂"
