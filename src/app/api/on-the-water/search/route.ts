@@ -139,6 +139,8 @@ type WaterPlace = {
   geocodeName: string;
   kind: string;
   waterType: "Freshwater" | "Saltwater";
+  latitude?: number;
+  longitude?: number;
   popularity?: "Popular" | "Local Favorite" | "Hidden Gem";
   fishingAccess?: string[];
   targetSpecies?: string[];
@@ -614,6 +616,8 @@ async function findOrigin(
 
 async function findWaterPlaces(
   startingLocation: string,
+  startingLatitude: number,
+  startingLongitude: number,
   activity: string,
   radiusMiles: number,
   requestedWaterType: "Freshwater" | "Saltwater" | "Either",
@@ -641,6 +645,17 @@ You are the regional destination discovery engine for TrippinDays On the Water.
 
 STARTING LOCATION:
 ${startingLocation}
+
+AUTHORITATIVE STARTING GPS:
+Latitude: ${startingLatitude}
+Longitude: ${startingLongitude}
+
+LOCATION RULE:
+- Treat the GPS coordinates above as the authoritative starting point.
+- If STARTING LOCATION says "Current Location", do NOT treat that phrase as a place name.
+- Use the GPS coordinates to determine the correct nearby region, state/province, country, coastline, lakes, rivers, and practical destinations.
+- Every suggested destination must realistically fit the requested radius from those GPS coordinates.
+- Prefer geocodeName values that include the correct city/town and state/province so they can be verified reliably.
 
 ACTIVITY:
 ${activity}
@@ -688,6 +703,8 @@ If activity is Surfing:
 - For Saltwater, return genuine ocean surfing locations. Beaches, surf areas and coastal towns are allowed.
 - For Freshwater, only return genuine freshwater surf locations such as Great Lakes surf beaches.
 - Do NOT return ordinary inland lakes or rivers that are not real surfing destinations.
+- For geocodeName, use a nearby recognizable city or town that a normal geocoder can reliably find. Example: a surf beach near Westport should use "Westport, Washington" as geocodeName instead of a tiny beach access-point name.
+- Return approximate decimal latitude and longitude for the actual recreation destination or practical access area. These coordinates are a fallback only; the server still prefers geocoder-verified coordinates.
 
 If activity is Personal Water Craft:
 - Return real lakes, reservoirs, large rivers, bays or coastal riding areas.
@@ -728,8 +745,10 @@ IMPORTANT:
 - Do not return the starting location simply because it is nearby.
 - Prefer recognizable named destinations.
 - Results may be towns when the town is the practical access point to the water.
-- "geocodeName" should normally be a city/town/location that a geocoder can find easily.
-- Include the state in geocodeName.
+- "geocodeName" MUST be a practical city/town/location that a geocoder can find easily.
+- Include the state/province/region in geocodeName when appropriate.
+- Return latitude and longitude as decimal numbers for every place.
+- Coordinates should be for the actual destination or practical public access area, not a random regional center.
 - Do not include explanations outside the JSON.
 
 Return ONLY this JSON structure:
@@ -741,6 +760,8 @@ Return ONLY this JSON structure:
       "geocodeName": "Westport, Washington",
       "kind": "Coastal Surf Town",
       "waterType": "Saltwater",
+      "latitude": 46.8901,
+      "longitude": -124.1041,
       "popularity": "Popular",
       "fishingAccess": [],
       "targetSpecies": [],
@@ -833,6 +854,14 @@ Return ONLY this JSON structure:
           ? place.kind
           : "Water Destination",
       waterType: place.waterType,
+      latitude:
+        Number.isFinite(Number(place.latitude))
+          ? Number(place.latitude)
+          : undefined,
+      longitude:
+        Number.isFinite(Number(place.longitude))
+          ? Number(place.longitude)
+          : undefined,
       popularity:
         place.popularity === "Popular" ||
         place.popularity === "Local Favorite" ||
@@ -887,38 +916,65 @@ Return ONLY this JSON structure:
 async function geocodePlace(
   place: WaterPlace
 ) {
-  const params =
-    new URLSearchParams({
-      name:
-        place.geocodeName,
-      count: "5",
-      language: "en",
-      format: "json",
-    });
+  /*
+    Open-Meteo sometimes finds a city name more reliably than
+    a full recreation/access-point name. Try a few safe variants
+    instead of discarding a real destination after one failed query.
+  */
+  const queryCandidates = Array.from(
+    new Set(
+      [
+        place.geocodeName?.trim(),
+        place.geocodeName
+          ?.split(",")[0]
+          ?.trim(),
+        place.name?.trim(),
+      ].filter(
+        (value): value is string =>
+          typeof value === "string" &&
+          value.length > 1
+      )
+    )
+  );
 
-  try {
-    const response =
-      await fetch(
-        `https://geocoding-api.open-meteo.com/v1/search?${params.toString()}`,
-        {
-          cache:
-            "no-store",
-        }
-      );
+  const allResults: any[] = [];
 
-    if (!response.ok) {
-      return [];
+  for (const query of queryCandidates) {
+    const params =
+      new URLSearchParams({
+        name: query,
+        count: "8",
+        language: "en",
+        format: "json",
+      });
+
+    try {
+      const response =
+        await fetch(
+          `https://geocoding-api.open-meteo.com/v1/search?${params.toString()}`,
+          {
+            cache: "no-store",
+          }
+        );
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const data =
+        await response.json();
+
+      if (Array.isArray(data?.results)) {
+        allResults.push(
+          ...data.results
+        );
+      }
+    } catch {
+      // Try the next query variant.
     }
-
-    const data =
-      await response.json();
-
-    return (
-      data?.results || []
-    );
-  } catch {
-    return [];
   }
+
+  return allResults;
 }
 
 async function verifyCandidates(
@@ -939,6 +995,52 @@ async function verifyCandidates(
           let best:
             | Candidate
             | null = null;
+
+          const makeCandidate = (
+            latitude: number,
+            longitude: number,
+            distance: number
+          ): Candidate => ({
+            name:
+              place.name,
+
+            kind:
+              place.kind ||
+              "Water Destination",
+
+            waterType:
+              place.waterType,
+
+            popularity:
+              place.popularity,
+
+            fishingAccess:
+              place.fishingAccess,
+
+            targetSpecies:
+              place.targetSpecies,
+
+            seasonalStatus:
+              place.seasonalStatus,
+
+            seasonalNote:
+              place.seasonalNote,
+
+            publicAccess:
+              place.publicAccess,
+
+            rulesNote:
+              place.rulesNote,
+
+            latitude,
+
+            longitude,
+
+            distanceMiles:
+              Math.round(
+                distance * 10
+              ) / 10,
+          });
 
           for (
             const location of locations
@@ -983,54 +1085,12 @@ async function verifyCandidates(
               continue;
             }
 
-            const candidate: Candidate =
-              {
-                name:
-                  place.name,
-
-                kind:
-                  place.kind ||
-                  "Water Destination",
-
-                // Preserve the fishing metadata returned by the
-                // regional discovery step. Without carrying these
-                // fields through geocoding, the planner only saw
-                // generic condition cards and the seasonal/run
-                // information disappeared.
-                waterType:
-                  place.waterType,
-
-                popularity:
-                  place.popularity,
-
-                fishingAccess:
-                  place.fishingAccess,
-
-                targetSpecies:
-                  place.targetSpecies,
-
-                seasonalStatus:
-                  place.seasonalStatus,
-
-                seasonalNote:
-                  place.seasonalNote,
-
-                publicAccess:
-                  place.publicAccess,
-
-                rulesNote:
-                  place.rulesNote,
-
+            const candidate =
+              makeCandidate(
                 latitude,
-
                 longitude,
-
-                distanceMiles:
-                  Math.round(
-                    distance *
-                      10
-                  ) / 10,
-              };
+                distance
+              );
 
             if (
               !best ||
@@ -1039,6 +1099,45 @@ async function verifyCandidates(
             ) {
               best =
                 candidate;
+            }
+          }
+
+          /*
+            If the geocoder could not verify the place, use the
+            AI-provided coordinates only as a controlled fallback.
+            Distance is still enforced here, and Surfing must later
+            pass the real nearby marine-data check in getForecast().
+          */
+          if (!best) {
+            const fallbackLat =
+              Number(place.latitude);
+
+            const fallbackLon =
+              Number(place.longitude);
+
+            if (
+              Number.isFinite(fallbackLat) &&
+              Number.isFinite(fallbackLon)
+            ) {
+              const fallbackDistance =
+                getDistanceMiles(
+                  originLat,
+                  originLon,
+                  fallbackLat,
+                  fallbackLon
+                );
+
+              if (
+                fallbackDistance <=
+                radiusMiles + 10
+              ) {
+                best =
+                  makeCandidate(
+                    fallbackLat,
+                    fallbackLon,
+                    fallbackDistance
+                  );
+              }
             }
           }
 
@@ -1906,6 +2005,8 @@ export async function POST(
     const places =
       await findWaterPlaces(
         origin.label,
+        origin.latitude,
+        origin.longitude,
         activity,
         radiusMiles,
         waterType,
@@ -1932,6 +2033,24 @@ export async function POST(
     if (
       candidates.length === 0
     ) {
+      console.warn(
+        "On the Water verification returned zero candidates:",
+        {
+          origin,
+          activity,
+          waterType,
+          radiusMiles,
+          discoveredPlaces:
+            places.map((place) => ({
+              name: place.name,
+              geocodeName: place.geocodeName,
+              latitude: place.latitude,
+              longitude: place.longitude,
+              waterType: place.waterType,
+            })),
+        }
+      );
+
       return NextResponse.json({
         origin,
         activity,

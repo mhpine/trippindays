@@ -68,7 +68,7 @@ export default function OnTheWaterHeader() {
           </a>
 
           <a
-            href="/account"
+            href="/profile"
             aria-label="Profile"
             title="Profile"
             className="flex h-11 w-11 items-center justify-center rounded-full bg-cyan-500 text-lg font-black text-[#061a34] transition hover:bg-cyan-300"
@@ -148,7 +148,7 @@ export default function OnTheWaterHeader() {
             </a>
 
             <a
-              href="/account"
+              href="/profile"
               onClick={() => setMobileOpen(false)}
               className="mt-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-3 text-cyan-100"
             >
@@ -160,3 +160,5 @@ export default function OnTheWaterHeader() {
     </header>
   );
 }
+
+
