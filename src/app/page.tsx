@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-
+import useTrippinDaysLocation from "@/hooks/useTrippinDaysLocation";
+import SiteHeader from "@/components/SiteHeader";
+import SiteQuickAccess from "@/components/SiteQuickAccess";
 type TripCard = {
   label: string;
   title: string;
@@ -671,6 +673,18 @@ export default function TrippinDaysHomeV2() {
     useState("Current Location");
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
+
+  const {
+    location: deviceLocation,
+    findingLocation: findingDeviceLocation,
+    error: deviceLocationError,
+    useCurrentLocation,
+  } = useTrippinDaysLocation({
+    autoRefreshIfGranted: true,
+  });
+
+  const [usingDeviceLocation, setUsingDeviceLocation] =
+    useState(true);
   const [isListening, setIsListening] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
@@ -757,61 +771,38 @@ async function handleSignOut() {
   window.location.replace("/");
 }
   useEffect(() => {
-    // Always start with Current Location. If permission is granted,
-    // replace it with a readable city/state and keep the coordinates.
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-
-          setLatitude(lat);
-          setLongitude(lng);
-
-          try {
-            const response = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`
-            );
-
-            if (!response.ok) {
-              throw new Error("Unable to reverse-geocode location.");
-            }
-
-            const data = await response.json();
-
-            const city =
-              data.address?.city ||
-              data.address?.town ||
-              data.address?.village ||
-              data.address?.municipality ||
-              data.address?.county;
-
-            const state =
-              data.address?.state_code ||
-              data.address?.state;
-
-            if (city && state) {
-              setStartingLocation(`${city}, ${state}`);
-            } else if (data.display_name) {
-              setStartingLocation(data.display_name);
-            } else {
-              setStartingLocation("Current Location");
-            }
-          } catch {
-            setStartingLocation("Current Location");
-          }
-        },
-        () => {
-          setStartingLocation("Current Location");
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 300000,
-        }
-      );
+    if (!deviceLocation || !usingDeviceLocation) {
+      return;
     }
 
+    setLatitude(deviceLocation.latitude);
+    setLongitude(deviceLocation.longitude);
+    setStartingLocation(
+      deviceLocation.shortLabel ||
+        deviceLocation.label ||
+        "Current Location"
+    );
+  }, [deviceLocation, usingDeviceLocation]);
+
+  async function usePlannerDeviceLocation() {
+    setUsingDeviceLocation(true);
+
+    const next = await useCurrentLocation();
+
+    if (!next) {
+      return;
+    }
+
+    setLatitude(next.latitude);
+    setLongitude(next.longitude);
+    setStartingLocation(
+      next.shortLabel ||
+        next.label ||
+        "Current Location"
+    );
+  }
+
+  useEffect(() => {
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
@@ -1088,6 +1079,16 @@ async function handleSignOut() {
       now.getDate()
     ).padStart(2, "0")}`;
 
+  const deviceOriginText =
+    usingDeviceLocation &&
+    latitude !== null &&
+    longitude !== null
+      ? `AUTHORITATIVE STARTING GPS:
+Latitude: ${latitude}
+Longitude: ${longitude}
+Use these coordinates as the actual starting point. Do not geocode the words "Current Location".`
+      : "";
+
   function scrollToPlanner() {
     document.getElementById("planner")?.scrollIntoView({
       behavior: "smooth",
@@ -1148,7 +1149,7 @@ async function handleSignOut() {
     }
 
     const roadTripRequest = `
-Starting Location: ${startingLocation}
+Starting Location: ${startingLocation}\n${deviceOriginText}
 
 Destination: ${roadTripDestination}
 
@@ -1260,7 +1261,7 @@ Do not invent current prices, operating hours, closures, or availability. When t
     }
 
     const surpriseRequest = `
-Starting Location: ${startingLocation}
+Starting Location: ${startingLocation}\n${deviceOriginText}
 
 Budget: $${budget}
 
@@ -1325,7 +1326,7 @@ function useTripCard(trip: TripCard) {
   }
 
   const viewTripRequest = `
-Starting Location: ${startingLocation}
+Starting Location: ${startingLocation}\n${deviceOriginText}
 
 Trip Request:
 ${trip.prompt}
@@ -1384,7 +1385,7 @@ ${trip.prompt}
     }
 
     const fullRequest = `
-Starting Location: ${startingLocation}
+Starting Location: ${startingLocation}\n${deviceOriginText}
 
 Budget: $${budget}
 
@@ -1426,110 +1427,7 @@ ${combinedTripRequest}
 
   return (
     <main className="min-h-screen bg-[#f5efe4] text-[#092530]">
-      {/* HEADER */}
-      <header className="absolute inset-x-0 top-0 z-50 border-b border-white/10 bg-[#062b35]/75 backdrop-blur-md">
-        <div className="mx-auto flex max-w-[1500px] items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <a href="/" className="shrink-0">
-            <div className="text-2xl font-black italic text-white sm:text-3xl">
-              TrippinDays
-            </div>
-
-            <div className="text-xs font-black text-orange-500 sm:text-sm">
-              Plan. Pack. Go.
-            </div>
-          </a>
-
-         <nav className="hidden items-center gap-4 text-sm font-bold text-white xl:flex">
-  <button
-    type="button"
-    onClick={scrollToPlanner}
-    className="transition hover:text-orange-400"
-  >
-    Plan Road Trip
-  </button>
-
-   <a
-    href="/on-the-water"
-    className="transition hover:text-cyan-300"
-  >
-    On the Water
-  </a>
-
-
-  <a
-    href="#ideas"
-    className="transition hover:text-orange-400"
-  >
-    Destinations
-  </a>
-
- 
-  <a
-    href="/passport"
-    className="transition hover:text-orange-400"
-  >
-    Passport
-  </a>
-
-  <a
-    href="/journal"
-    className="transition hover:text-orange-400"
-  >
-    Journal
-  </a>
-
-  <a
-    href="/community"
-    className="transition hover:text-orange-400"
-  >
-    Community
-  </a>
-
-  <a
-    href="/premium"
-    className="rounded-lg bg-orange-500 px-3 py-2 font-black text-white transition hover:bg-orange-600"
-  >
-    Premium
-  </a>
-
-  <a
-    href="/saved-trips"
-    className="transition hover:text-orange-400"
-  >
-    My Trips
-  </a>
-</nav>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowInstallHelp(true)}
-              className="rounded-xl bg-white/15 px-2.5 py-2 text-[11px] font-black text-white ring-1 ring-white/30 backdrop-blur transition hover:bg-white/20 sm:px-4 sm:text-sm"
-            >
-              📲 Get App
-            </button>
-
-          {signedIn ? (
-  <button
-    type="button"
-    onClick={() => void handleSignOut()}
-    className="rounded-xl border border-white/70 bg-black/15 px-3 py-2 text-xs font-bold text-white backdrop-blur"
-  >
-    Sign Out
-  </button>
-) : (
-  <a
-    href="/login"
-    className="rounded-xl border border-white/70 bg-black/15 px-3 py-2 text-xs font-bold text-white backdrop-blur"
-  >
-    Sign In
-  </a>
-)}
-          </div>
-        </div>
-
-      </header>
-
+    <SiteHeader />
       {/* HERO */}
       <section className="relative overflow-hidden bg-[#062b35] text-white">
         <div className="relative h-[530px] sm:h-[670px] lg:h-[750px]">
@@ -1606,13 +1504,42 @@ ${combinedTripRequest}
             >
               <input
                 value={startingLocation}
-                onChange={(e) =>
-                  setStartingLocation(e.target.value)
-                }
+                onChange={(e) => {
+                  setUsingDeviceLocation(false);
+                  setLatitude(null);
+                  setLongitude(null);
+                  setStartingLocation(e.target.value);
+                }}
                 onFocus={(e) => e.currentTarget.select()}
                 onClick={(e) => e.currentTarget.select()}
                 className="w-full bg-transparent font-black outline-none"
               />
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  void usePlannerDeviceLocation();
+                }}
+                disabled={findingDeviceLocation}
+                className="mt-2 text-left text-[11px] font-black text-cyan-700 disabled:cursor-wait disabled:opacity-60"
+              >
+                {findingDeviceLocation
+                  ? "📍 Finding Location..."
+                  : "📍 Use My Location"}
+              </button>
+
+              {usingDeviceLocation && deviceLocation && (
+                <div className="mt-1 text-[10px] font-bold text-slate-500">
+                  Using device GPS
+                </div>
+              )}
+
+              {deviceLocationError && (
+                <div className="mt-1 text-[10px] font-bold leading-4 text-red-600">
+                  {deviceLocationError}
+                </div>
+              )}
             </PlannerField>
 
             <PlannerField icon="💲" label="Budget">
@@ -1965,53 +1892,8 @@ ${combinedTripRequest}
         </div>
       </section>
 
-      {/* QUICK ACCESS */}
-      <section className="mx-auto max-w-[1320px] px-4 pb-3 pt-8 sm:px-5 lg:px-8">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <QuickLink
-            href="/on-the-water"
-            icon="🌊"
-            title="On the Water"
-            text="Find the best water conditions near you."
-          />
-
-          <QuickLink
-            href="/passport"
-            icon="🛂"
-            title="Passport"
-            text="Collect your travel memories."
-          />
-
-          <QuickLink
-            href="/journal"
-            icon="📖"
-            title="Journal"
-            text="Save the story of every trip."
-          />
-
-          <QuickLink
-            href="/community"
-            icon="🌎"
-            title="Community"
-            text="See and share adventures."
-          />
-
-          <QuickLink
-            href="/premium"
-            icon="⭐"
-            title="Premium"
-            text="Unlock smarter planning tools."
-            premium
-          />
-
-          <QuickLink
-            href="/saved-trips"
-            icon="🧳"
-            title="My Trips"
-            text="Return to saved adventures."
-          />
-        </div>
-      </section>
+     {/* QUICK ACCESS */}
+<SiteQuickAccess />
 
       {/* ADVENTURES NEAR YOU */}
       <section

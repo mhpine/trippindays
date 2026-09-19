@@ -63,7 +63,7 @@ export default function OnTheWaterHero() {
         <div className="relative mx-auto max-w-[1500px] px-5 py-12 sm:px-8 lg:px-10">
           <div className="max-w-[800px] py-8">
             <p className="mb-2 text-2xl font-medium italic text-white">
-              Find Your Adventure
+              
             </p>
 
             <h1 className="text-5xl font-black tracking-tight text-white sm:text-6xl lg:text-7xl">
@@ -74,13 +74,11 @@ export default function OnTheWaterHero() {
             </h1>
 
             <p className="mt-3 text-xl font-bold text-white">
-              Real conditions. Better days. Bigger adventures.
+              
             </p>
 
             <p className="mt-3 max-w-[720px] text-base leading-relaxed text-slate-100 sm:text-lg">
-              Surf. Play. Fish. Paddle. Sail. On the Water finds
-              the best conditions near you and helps plan the
-              perfect trip around them.
+              
             </p>
           </div>
 

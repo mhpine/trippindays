@@ -7,266 +7,205 @@ export default function SiteHeader() {
   const [signedIn, setSignedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+const [isPremium, setIsPremium] = useState(false);
+ useEffect(() => {
+  const supabase = createClient();
 
-  useEffect(() => {
-    const supabase = createClient();
+  async function checkUser() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    async function checkUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    setSignedIn(!!user);
 
-      setSignedIn(!!user);
+    if (!user) {
+      setIsPremium(false);
       setLoading(false);
+      return;
     }
 
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("is_premium")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Could not check Premium status:", error);
+      setIsPremium(false);
+    } else {
+      setIsPremium(profile?.is_premium === true);
+    }
+
+    setLoading(false);
+  }
+
+  void checkUser();
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange(() => {
     void checkUser();
+  });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSignedIn(!!session?.user);
-      setLoading(false);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
+  return () => {
+    subscription.unsubscribe();
+  };
+}, []);
 
   async function logOut() {
     const supabase = createClient();
-
     await supabase.auth.signOut();
-
     setSignedIn(false);
     window.location.href = "/";
   }
-function handleGetApp() {
-  const ua = navigator.userAgent.toLowerCase();
 
-  const isAndroid = ua.includes("android");
-  const isIOS =
-    /iphone|ipad|ipod/.test(ua) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  function handleGetApp() {
+    const ua = navigator.userAgent.toLowerCase();
+    const isAndroid = ua.includes("android");
+    const isIOS =
+      /iphone|ipad|ipod/.test(ua) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
-  if (isAndroid) {
+    if (isAndroid) {
+      window.location.href = "/downloads/TrippinDays.apk";
+      return;
+    }
+
+    if (isIOS) {
+      alert("For now, open TrippinDays in Safari and use Add to Home Screen.");
+      return;
+    }
+
     window.location.href = "/downloads/TrippinDays.apk";
-    return;
   }
 
-  if (isIOS) {
-    alert(
-      "The TrippinDays iPhone app is coming soon. For now, use TrippinDays in Safari and add it to your Home Screen."
-    );
-    return;
-  }
+  const navLink = "transition hover:text-orange-300 whitespace-nowrap";
 
-  window.location.href = "/downloads/TrippinDays.apk";
-}
   return (
-    <header className="border-b border-white/10 bg-slate-950 text-white">
-      <div className="mx-auto max-w-7xl px-4 py-3">
-
-        {/* TOP ROW */}
-        <div className="flex items-center justify-between gap-3">
-          {/* LOGO */}
-          <a
-            href="/"
-            className="shrink-0 text-xl font-black tracking-tight sm:text-2xl"
-          >
+    <header className="sticky top-0 z-[1000] w-full border-b border-white/10 bg-[#062b35] text-white shadow-lg">
+      <div className="mx-auto flex min-h-[76px] max-w-[1500px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <a href="/" className="shrink-0" aria-label="TrippinDays home">
+          <div className="text-2xl font-black italic leading-none sm:text-3xl">
             <span className="text-white">Trippin</span>
             <span className="text-cyan-400">Days</span>
-          </a>
+          </div>
+          <div className="mt-1 text-[11px] font-black text-orange-400 sm:text-xs">
+            Plan. Pack. Go.
+          </div>
+        </a>
 
-          {/* DESKTOP NAV */}
-          <nav className="hidden items-center gap-1 md:flex">
-            <a
-              href="/downloads/TrippinDays.apk"
-              download
-              className="rounded-full bg-sky-500 px-4 py-2 font-bold text-white hover:bg-sky-400"
-            >
-              📱 Get App
-            </a>
+        <nav className="hidden items-center gap-5 text-sm font-black xl:flex" aria-label="Primary navigation">
+          <a href="/#planner" className={navLink}>Plan a Trip</a>
+          <a href="/on-the-water" className={navLink}>On the Water</a>
+          <a href="/off-the-road" className={navLink}>Off the Road</a>
 
-            <a
-              href="/"
-              className="rounded-full px-3 py-2 font-bold hover:bg-white/10"
-            >
-              Home
-            </a>
-           
-{signedIn && (
-  <>
-            <a
-              href="/passport"
-              className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
-            >
-              Passport
-              
-            </a>
+          <span
+            className="flex cursor-default items-center gap-2 whitespace-nowrap text-white/70"
+            title="In the Air is coming soon"
+            aria-disabled="true"
+          >
+            In the Air
+            <span className="rounded-full bg-cyan-400/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-200 ring-1 ring-cyan-300/30">
+              Soon
+            </span>
+          </span>
 
-            <a
-              href="/journal"
-              className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
-            >
-              Journal
-            </a>
-
-            <a
-              href="/community"
-              className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
-            >
-              Community
-            </a>
-
-            <a
-              href="/feedback"
-              className="rounded-full px-4 py-2 font-bold hover:bg-white/10"
-            >
-              Feedback
-            </a>
-
-</>
-)}
-<a
-  href="/premium"
-  className="rounded-xl bg-amber-400 px-4 py-3 font-black text-slate-950 hover:bg-amber-300"
->
+          {!isPremium && (
+  <a
+    href="/premium"
+    className="rounded-xl bg-orange-500 px-5 py-3 font-black text-white"
+  >
     Premium
   </a>
-{!loading && !signedIn && (
-              <a
-                href="/login"
-                className="rounded-full border border-white/20 px-4 py-2 font-bold hover:bg-white/10"
-              >
-                Log In
-              </a>
-            )}
+)}
+          <a href="/saved-trips" className={navLink}>My Trips</a>
+        </nav>
 
-            {!loading && signedIn && (
-              <>
-                <a
-                  href="/profile"
-                  className="rounded-full border border-sky-400/40 px-4 py-2 font-bold text-sky-300 hover:bg-sky-400/10"
-                >
-                  My Account
-                </a>
+        <div className="hidden items-center gap-2 xl:flex">
+          <button
+            type="button"
+            onClick={handleGetApp}
+            className="rounded-xl bg-white/15 px-3 py-2 text-xs font-black text-white ring-1 ring-white/30 transition hover:bg-white/20"
+          >
+            📲 Get App
+          </button>
 
-                <button
-                  type="button"
-                  onClick={() => void logOut()}
-                  className="rounded-full border border-white/20 px-4 py-2 font-bold hover:bg-white/10"
-                >
-                  Log Out
-                </button>
-              </>
-            )}
-          </nav>
+          {!loading && !signedIn && (
+            <a href="/login" className="rounded-xl border border-white/70 bg-black/15 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/10">
+              Sign In
+            </a>
+          )}
 
-          {/* MOBILE CONTROLS */}
-          <div className="flex items-center gap-2 md:hidden">
-           <button
-  type="button"
-  onClick={handleGetApp}
-  className="rounded-full bg-sky-500 px-3 py-2 text-sm font-bold text-white"
->
-  📱 Get App
-</button>
-
+          {!loading && signedIn && (
             <button
               type="button"
-              onClick={() => setMenuOpen((open) => !open)}
-              className="rounded-full border border-white/20 px-3 py-2 text-xl font-bold"
-              aria-label="Open navigation menu"
-              aria-expanded={menuOpen}
+              onClick={() => void logOut()}
+              className="rounded-xl border border-white/70 bg-black/15 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/10"
             >
-              ☰
+              Sign Out
             </button>
-          </div>
+          )}
         </div>
 
-        {/* MOBILE MENU */}
-        {menuOpen && (
-          <nav className="mt-3 grid gap-2 border-t border-white/10 pt-3 md:hidden">
-            <a
-              href="/"
-              onClick={() => setMenuOpen(false)}
-              className="rounded-xl px-4 py-3 font-bold hover:bg-white/10"
-            >
-              Home
-            </a>
+        <div className="flex items-center gap-2 xl:hidden">
+          <button
+            type="button"
+            onClick={handleGetApp}
+            className="rounded-xl bg-white/15 px-3 py-2 text-xs font-black text-white ring-1 ring-white/30"
+          >
+            📲 App
+          </button>
 
-            <a
-              href="/passport"
-              onClick={() => setMenuOpen(false)}
-              className="rounded-xl px-4 py-3 font-bold hover:bg-white/10"
-            >
-              Passport
-            </a>
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/30 bg-black/15 text-xl font-black"
+            aria-label="Open navigation menu"
+            aria-expanded={menuOpen}
+          >
+            {menuOpen ? "✕" : "☰"}
+          </button>
+        </div>
+      </div>
 
-            <a
-              href="/journal"
-              onClick={() => setMenuOpen(false)}
-              className="rounded-xl px-4 py-3 font-bold hover:bg-white/10"
-            >
-              Journal
+      {menuOpen && (
+        <nav className="border-t border-white/10 bg-[#062b35] px-4 pb-4 pt-3 xl:hidden" aria-label="Mobile navigation">
+          <div className="mx-auto grid max-w-[1500px] gap-1">
+            <a href="/#planner" onClick={() => setMenuOpen(false)} className="rounded-xl px-4 py-3 font-bold hover:bg-white/10">
+              Plan a Trip
             </a>
-
-            <a
-              href="/community"
-              onClick={() => setMenuOpen(false)}
-              className="rounded-xl px-4 py-3 font-bold hover:bg-white/10"
-            >
-              Community
+            <a href="/on-the-water" onClick={() => setMenuOpen(false)} className="rounded-xl px-4 py-3 font-bold hover:bg-white/10">
+              🌊 On the Water
             </a>
-
-            <a
-              href="/feedback"
-              onClick={() => setMenuOpen(false)}
-              className="rounded-xl px-4 py-3 font-bold hover:bg-white/10"
-            >
-              Feedback
+            <a href="/off-the-road" onClick={() => setMenuOpen(false)} className="rounded-xl px-4 py-3 font-bold hover:bg-white/10">
+              🥾 Off the Road
             </a>
-            <a
-  href="/premium"
-  className="rounded-full bg-amber-400 px-4 py-2 font-black text-slate-950 hover:bg-amber-300"
->
-  Premium
-</a>
+            <div className="flex items-center justify-between rounded-xl px-4 py-3 font-bold text-white/60">
+              <span>✈️ In the Air</span>
+              <span className="rounded-full bg-cyan-400/15 px-2 py-1 text-[10px] font-black uppercase text-cyan-200">Soon</span>
+            </div>
+            <a href="/premium" onClick={() => setMenuOpen(false)} className="rounded-xl bg-orange-500 px-4 py-3 font-black text-white">
+              ⭐ Premium
+            </a>
+            <a href="/saved-trips" onClick={() => setMenuOpen(false)} className="rounded-xl px-4 py-3 font-bold hover:bg-white/10">
+              🧳 My Trips
+            </a>
 
             {!loading && !signedIn && (
-              <a
-                href="/login"
-                onClick={() => setMenuOpen(false)}
-                className="rounded-xl px-4 py-3 font-bold hover:bg-white/10"
-              >
-                Log In
+              <a href="/login" onClick={() => setMenuOpen(false)} className="rounded-xl px-4 py-3 font-bold hover:bg-white/10">
+                Sign In
               </a>
             )}
 
             {!loading && signedIn && (
-              <>
-                <a
-                  href="/profile"
-                  onClick={() => setMenuOpen(false)}
-                  className="rounded-xl px-4 py-3 font-bold text-sky-300 hover:bg-white/10"
-                >
-                  My Account
-                </a>
-
-                <button
-                  type="button"
-                  onClick={() => void logOut()}
-                  className="rounded-xl px-4 py-3 text-left font-bold hover:bg-white/10"
-                >
-                  Log Out
-                </button>
-              </>
+              <button type="button" onClick={() => void logOut()} className="rounded-xl px-4 py-3 text-left font-bold hover:bg-white/10">
+                Sign Out
+              </button>
             )}
-          </nav>
-        )}
-      </div>
+          </div>
+        </nav>
+      )}
     </header>
   );
 }

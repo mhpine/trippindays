@@ -197,24 +197,6 @@ function formatPhoneForDisplay(value: string): string {
 }
 
 
-async function getPlanAuthHeaders() {
-  const supabase = createClient();
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  return {
-    "Content-Type": "application/json",
-    ...(session?.access_token
-      ? {
-          Authorization:
-            `Bearer ${session.access_token}`,
-        }
-      : {}),
-  };
-}
-
 export default function TripPage() {
   const [request, setRequest] = useState("");
   const budget = getValue(request, "Budget") || "Not specified";
@@ -736,17 +718,10 @@ console.log("NEARBY EVENT DATA:", data.events);
       setIsLoading(true);
       setError("");
       setSaveMessage("");
-const offRoadPremiumRequest =
-  /OFF THE ROAD PREMIUM\s*[—-]\s*(TRAIL INTELLIGENCE|FULL ADVENTURE|BASECAMP WEEKEND|VERIFIED HUNTING EXPEDITION)/i.test(
-    savedRequest
-  );
 
-const planEndpoint = offRoadPremiumRequest
-  ? "/api/off-the-road/premium-plan"
-  : "/api/plan";
-      const response = await fetch(planEndpoint, {
+      const response = await fetch("/api/plan", {
         method: "POST",
-        headers: await getPlanAuthHeaders(),
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
   tripRequest: savedRequest,
   recentDestinations: recentForRequest,
@@ -1104,7 +1079,9 @@ return time, and RoadTunes music suggestions.
 
     const response = await fetch("/api/plan", {
       method: "POST",
-      headers: await getPlanAuthHeaders(),
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         tripRequest: remixRequest,
       }),

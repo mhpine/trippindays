@@ -41,7 +41,12 @@ export default function OnTheWaterHeader() {
            Plan Road Trip
           </a>
 
-          
+          <a
+  href="/off-the-road"
+  className="transition-colors duration-200 hover:text-lime-300"
+>
+  Off the Road
+</a>
 
           <a href="/passport" className={navLink}>
             Passport
@@ -138,7 +143,12 @@ export default function OnTheWaterHeader() {
             >
               Journal
             </a>
-
+<a
+  href="/off-the-road"
+  className="transition-colors duration-200 hover:text-lime-300"
+>
+  Off the Road
+</a>
             <a
               href="/community"
               onClick={() => setMobileOpen(false)}

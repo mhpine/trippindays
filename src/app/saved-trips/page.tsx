@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import SiteHeader from "@/components/SiteHeader";
 
 type SavedTrip = {
   id: string;
@@ -170,8 +171,11 @@ export default function SavedTripsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-8 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
+    <main className="min-h-screen bg-slate-950 text-white">
+      <SiteHeader />
+
+      <div className="px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm font-black uppercase tracking-[0.25em] text-sky-300">
@@ -352,6 +356,7 @@ export default function SavedTripsPage() {
             ))}
           </div>
         )}
+        </div>
       </div>
     </main>
   );

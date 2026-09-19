@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
-import useTrippinDaysLocation from "@/hooks/useTrippinDaysLocation";
 import {
   useEffect,
   useRef,
@@ -136,18 +135,6 @@ export default function OnTheWaterPlanner() {
   const [activity, setActivity] = useState("Surfing");
   const [waterType, setWaterType] = useState<WaterType>("");
   const [startingLocation, setStartingLocation] = useState("");
-
-  const {
-    location: deviceLocation,
-    findingLocation: findingDeviceLocation,
-    error: deviceLocationError,
-    useCurrentLocation,
-  } = useTrippinDaysLocation({
-    autoRefreshIfGranted: true,
-  });
-
-  const [usingDeviceLocation, setUsingDeviceLocation] =
-    useState(true);
   const [radius, setRadius] = useState("150");
   const [skill, setSkill] = useState("Intermediate");
   const [when, setWhen] = useState("This Weekend");
@@ -181,44 +168,6 @@ export default function OnTheWaterPlanner() {
   const [pushSubscriptionReady, setPushSubscriptionReady] =
     useState(false);
   const syncedSavedSpotsRef = useRef(false);
-
-  /* =========================================================
-     SHARED TRIPPINDAYS DEVICE LOCATION
-  ========================================================= */
-
-  useEffect(() => {
-    if (!deviceLocation || !usingDeviceLocation) {
-      return;
-    }
-
-    const hasCity = Boolean(deviceLocation.city);
-
-    const nextLocation: WaterLocation = {
-      name:
-        deviceLocation.city ||
-        deviceLocation.shortLabel ||
-        "Current Location",
-      state: hasCity
-        ? deviceLocation.state || undefined
-        : undefined,
-      latitude: deviceLocation.latitude,
-      longitude: deviceLocation.longitude,
-      source: "gps",
-    };
-
-    setLocation(nextLocation);
-    setStartingLocation("Current Location");
-
-    try {
-      // Keep this legacy key for Water Toolkit compatibility.
-      localStorage.setItem(
-        "trippindays-water-location",
-        JSON.stringify(nextLocation)
-      );
-    } catch {
-      // Shared GPS still works if browser storage is unavailable.
-    }
-  }, [deviceLocation, usingDeviceLocation]);
 
   /* =========================================================
      LOAD SAVED LOCATION
@@ -1812,7 +1761,6 @@ This destination was saved from TrippinDays On the Water. Conditions can change,
       source: "search",
     };
 
-    setUsingDeviceLocation(false);
     setLocation(nextLocation);
 
     setStartingLocation(
@@ -1829,48 +1777,44 @@ This destination was saved from TrippinDays On the Water. Conditions can change,
     return nextLocation;
   }
 
-  async function useMyLocation() {
+  function useMyLocation() {
     setMessage("");
-    setUsingDeviceLocation(true);
 
-    const current = await useCurrentLocation();
-
-    if (!current) {
-      setMessage(
-        "Could not get your device location. Allow location access and try again, or enter a city, state, or ZIP instead."
-      );
+    if (!navigator.geolocation) {
+      setMessage("Location services are not available.");
       return;
     }
 
-    const hasCity = Boolean(current.city);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const nextLocation: WaterLocation = {
+          name: "Current Location",
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          source: "gps",
+        };
 
-    const nextLocation: WaterLocation = {
-      name:
-        current.city ||
-        current.shortLabel ||
-        "Current Location",
-      state: hasCity
-        ? current.state || undefined
-        : undefined,
-      latitude: current.latitude,
-      longitude: current.longitude,
-      source: "gps",
-    };
+        setLocation(nextLocation);
+        setStartingLocation("Current Location");
+        setResults([]);
+        setSelectedId(null);
 
-    setLocation(nextLocation);
-    setStartingLocation("Current Location");
-    setResults([]);
-    setSelectedId(null);
-
-    try {
-      // Keep the Water Toolkit and older Water code synchronized.
-      localStorage.setItem(
-        "trippindays-water-location",
-        JSON.stringify(nextLocation)
-      );
-    } catch {
-      // Shared device location is already stored by the common hook.
-    }
+        localStorage.setItem(
+          "trippindays-water-location",
+          JSON.stringify(nextLocation)
+        );
+      },
+      () => {
+        setMessage(
+          "Could not get your location. Enter a city, state, or ZIP instead."
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 60000,
+      }
+    );
   }
 
   /* =========================================================
@@ -1931,13 +1875,19 @@ This destination was saved from TrippinDays On the Water. Conditions can change,
         recentDestinations = [];
       }
 
-      // Server-verified Premium access: send the current Supabase token.
-      // The API, not browser state, decides whether paid water data is returned.
+      /*
+        Send the signed-in user's Supabase access token to the
+        server. The server — not this browser state — decides
+        whether Premium search features are allowed.
+      */
       const supabase = createClient();
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const accessToken = session?.access_token || "";
+
+      const accessToken =
+        session?.access_token || "";
 
       const response = await fetch(
         "/api/on-the-water/search",
@@ -1946,7 +1896,10 @@ This destination was saved from TrippinDays On the Water. Conditions can change,
           headers: {
             "Content-Type": "application/json",
             ...(accessToken
-              ? { Authorization: `Bearer ${accessToken}` }
+              ? {
+                  Authorization:
+                    `Bearer ${accessToken}`,
+                }
               : {}),
           },
           cache: "no-store",
@@ -1978,21 +1931,35 @@ This destination was saved from TrippinDays On the Water. Conditions can change,
         );
       }
 
-      // Keep browser UI aligned with the server's verified entitlement.
+      /*
+        The API's server-verified entitlement is authoritative
+        for search results. This prevents a modified browser from
+        unlocking Premium search data.
+      */
       if (
         data?.access &&
-        typeof data.access.isPremium === "boolean"
+        typeof data.access.isPremium ===
+          "boolean"
       ) {
-        setIsPremium(data.access.isPremium === true);
+        setIsPremium(
+          data.access.isPremium === true
+        );
       }
 
-      // If a non-Premium request asked for a paid radius, the server
-      // clamps it. Reflect that server decision in the UI.
+      /*
+        If the server reduced an expired/non-Premium request from
+        200/250 miles to the Free limit, keep the UI honest.
+      */
       if (
-        Number.isFinite(Number(data?.radiusMiles)) &&
-        Number(data.radiusMiles) !== Number(radius)
+        Number.isFinite(
+          Number(data?.radiusMiles)
+        ) &&
+        Number(data.radiusMiles) !==
+          Number(radius)
       ) {
-        setRadius(String(data.radiusMiles));
+        setRadius(
+          String(data.radiusMiles)
+        );
       }
 
       const rawResults = Array.isArray(data.results)
@@ -2319,34 +2286,13 @@ Build the trip around ${tripActivity.toLowerCase()} at this exact destination. I
                   </span>
                 )}
 
-                <div className="text-right">
-                  <button
-                    type="button"
-                    onClick={() => void useMyLocation()}
-                    disabled={findingDeviceLocation}
-                    className="font-bold text-cyan-700 disabled:cursor-wait disabled:opacity-60"
-                  >
-                    {findingDeviceLocation
-                      ? "📍 Finding Location..."
-                      : "📍 Use My Location"}
-                  </button>
-
-                  {usingDeviceLocation && deviceLocation && (
-                    <div className="mt-1 text-[11px] font-semibold text-slate-500">
-                      Using device GPS
-                      {deviceLocation.shortLabel &&
-                      deviceLocation.shortLabel !== "Current Location"
-                        ? ` • ${deviceLocation.shortLabel}`
-                        : ""}
-                    </div>
-                  )}
-
-                  {deviceLocationError && (
-                    <div className="mt-1 max-w-[260px] text-[11px] font-semibold text-red-600">
-                      {deviceLocationError}
-                    </div>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={useMyLocation}
+                  className="font-bold text-cyan-700"
+                >
+                  📍 Use My Location
+                </button>
               </div>
             </div>
 
@@ -2402,15 +2348,15 @@ Build the trip around ${tripActivity.toLowerCase()} at this exact destination. I
                   className={inputClass}
                   value={startingLocation}
                   onChange={(event) => {
-                    const value = event.target.value;
-
-                    setStartingLocation(value);
+                    setStartingLocation(event.target.value);
                     setMessage("");
                     setResults([]);
                     setSelectedId(null);
 
-                    if (value !== "Current Location") {
-                      setUsingDeviceLocation(false);
+                    if (
+                      event.target.value !==
+                      "Current Location"
+                    ) {
                       setLocation(null);
                     }
                   }}
@@ -2957,9 +2903,9 @@ Build the trip around ${tripActivity.toLowerCase()} at this exact destination. I
               {activity} • {waterType} • within {radius} miles
             </p>
 
-            {!isPremium && results.length > 3 && (
+            {!isPremium && results.length > 0 && (
               <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-900">
-                Free shows the top 3 ranked destinations. Premium unlocks all {results.length} results plus advanced condition details.
+                Free shows up to 3 ranked destinations within 150 miles. Premium unlocks up to 6 results, 250-mile searches, and advanced condition details.
               </div>
             )}
 

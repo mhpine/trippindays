@@ -1,9 +1,5 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
-import {
-  getPremiumAccess,
-  premiumFeatureFromTripRequest,
-} from "@/lib/server/premium";
 
 type AdventureOption = {
   name: string;
@@ -368,43 +364,6 @@ if (contentLength > 20_000) {
 }
     const body = await request.json();
     const tripRequest = body.tripRequest;
-
-/* =========================================================
-   SERVER PREMIUM GATE
-   Never trust the browser's isPremium state.
-========================================================= */
-const premiumFeature =
-  typeof tripRequest === "string"
-    ? premiumFeatureFromTripRequest(tripRequest)
-    : null;
-
-if (premiumFeature) {
-  const premiumAccess =
-    await getPremiumAccess(request);
-
-  if (!premiumAccess.authenticated) {
-    return NextResponse.json(
-      {
-        error: "Sign in is required for this Premium feature.",
-        code: "PREMIUM_SIGN_IN_REQUIRED",
-        premiumFeature,
-      },
-      { status: 401 }
-    );
-  }
-
-  if (!premiumAccess.isPremium) {
-    return NextResponse.json(
-      {
-        error: "TrippinDays Premium is required for this feature.",
-        code: "PREMIUM_REQUIRED",
-        premiumFeature,
-      },
-      { status: 403 }
-    );
-  }
-}
-/* END SERVER PREMIUM GATE */
 if (
   typeof tripRequest !== "string" ||
   tripRequest.trim().length === 0 ||
