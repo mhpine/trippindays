@@ -96,21 +96,21 @@ const [isPremium, setIsPremium] = useState(false);
         </a>
 
         <nav className="hidden items-center gap-5 text-sm font-black xl:flex" aria-label="Primary navigation">
-          <a href="/#planner" className={navLink}>Plan a Trip</a>
-          <a href="/on-the-water" className={navLink}>On the Water</a>
-          <a href="/off-the-road" className={navLink}>Off the Road</a>
+          <a href="/#planner" className={navLink}>
+  Plan a Trip
+</a>
 
-          <span
-            className="flex cursor-default items-center gap-2 whitespace-nowrap text-white/70"
-            title="In the Air is coming soon"
-            aria-disabled="true"
-          >
-            In the Air
-            <span className="rounded-full bg-cyan-400/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-200 ring-1 ring-cyan-300/30">
-              Soon
-            </span>
-          </span>
+<a href="/on-the-water" className={navLink}>
+  On the Water
+</a>
 
+<a href="/off-the-road" className={navLink}>
+  Off the Road
+</a>
+
+<a href="/in-the-air" className={navLink}>
+  In the Air
+</a>
           {!isPremium && (
   <a
     href="/premium"
@@ -182,8 +182,13 @@ const [isPremium, setIsPremium] = useState(false);
               🥾 Off the Road
             </a>
             <div className="flex items-center justify-between rounded-xl px-4 py-3 font-bold text-white/60">
-              <span>✈️ In the Air</span>
-              <span className="rounded-full bg-cyan-400/15 px-2 py-1 text-[10px] font-black uppercase text-cyan-200">Soon</span>
+              <a
+  href="/in-the-air"
+  onClick={() => setMenuOpen(false)}
+  className="rounded-xl px-4 py-3 font-bold hover:bg-white/10"
+>
+  ✈️ In the Air
+</a>
             </div>
             <a href="/premium" onClick={() => setMenuOpen(false)} className="rounded-xl bg-orange-500 px-4 py-3 font-black text-white">
               ⭐ Premium

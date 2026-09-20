@@ -20,12 +20,12 @@ const QUICK_ITEMS: QuickItem[] = [
     title: "Off the Road",
     text: "Find trails, peaks, dirt, snow, and outdoor adventures.",
   },
-  {
-    icon: "✈️",
-    title: "In the Air",
-    text: "Air adventures are coming soon.",
-    soon: true,
-  },
+{
+  href: "/in-the-air",
+  icon: "✈️",
+  title: "In the Air",
+  text: "Find air adventures and the best conditions near you.",
+},
   {
     href: "/passport",
     icon: "🛂",
