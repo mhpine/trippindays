@@ -602,9 +602,25 @@ function activityInstructions(
 Find known paragliding launch areas, flying sites, mountains or established tandem-flight areas.
 `;
 
-    case "Skydiving":
-      return `
-Find known skydiving areas, drop-zone towns or airports associated with recreational skydiving.
+case "Skydiving":
+  return `
+Find real established outdoor skydiving drop zones and skydiving centers.
+
+IMPORTANT:
+- "name" must be the actual skydiving center or drop-zone name.
+- "geocodeName" MUST be the nearest CITY/TOWN AND STATE.
+- Do NOT put the business name in geocodeName.
+- Examples:
+  {
+    "name": "Skydive Toledo",
+    "geocodeName": "Toledo, Washington"
+  }
+  {
+    "name": "Kapowsin Air Sports",
+    "geocodeName": "Shelton, Washington"
+  }
+- Prefer established tandem skydiving drop zones.
+- Do not return indoor wind tunnels.
 `;
 
     case "Hot-Air Ballooning":
@@ -679,8 +695,14 @@ async function discoverActivityPlaces(
   const prompt = `
 You are helping TrippinDays discover real, legal air-adventure destinations.
 
-Starting location:
+Starting location label:
 ${origin.label}
+
+Starting latitude:
+${origin.latitude}
+
+Starting longitude:
+${origin.longitude}
 
 Activity:
 ${activity}
@@ -688,30 +710,11 @@ ${activity}
 Search radius:
 ${radiusMiles} miles
 
-${activityInstructions(
-  activity
-)}
-
-IMPORTANT RULES:
-
-- United States only.
-- Return real named places that are known to exist.
-- Stay reasonably close to the requested radius.
-- Do not invent businesses, operators, attractions or destinations.
-- Do not invent prices.
-- Do not invent ratings.
-- Do not invent opening hours.
-- Do not invent booking URLs.
-- Do not invent weather.
-- Do not return private or unauthorized activity locations.
-- Bungee jumping must be a legal established experience.
-- Do not include BASE jumping.
-- "geocodeName" must be a place string that a normal geographic geocoder can resolve.
-- Include city/state or destination/state in geocodeName.
-- Prefer specific destinations over broad states.
-- Return no more than 12 candidates.
-
-Return ONLY JSON in this exact structure:
+IMPORTANT:
+- The latitude and longitude above are the authoritative search center.
+- If the label says "Current Location", use the coordinates to determine the region.
+- Search for real established ${activity} locations within ${radiusMiles} miles of those coordinates.
+- Do not treat "Current Location" as a city name.
 
 {
   "places": [
@@ -830,88 +833,153 @@ Return ONLY JSON in this exact structure:
 ========================================================= */
 
 async function verifyCandidates(
-  places:
-    DiscoveredPlace[],
+  places: DiscoveredPlace[],
   origin: Origin,
   radiusMiles: number,
   activity: string
-): Promise<
-  Candidate[]
-> {
-  const checked =
-    await Promise.all(
-      places.map(
-        async (
-          place
-        ) => {
-          try {
-            const found =
-              await geocodeLocation(
-                place.geocodeName
-              );
+): Promise<Candidate[]> {
+  const checked = await Promise.all(
+    places.map(async (place) => {
+      try {
+        const raw =
+          String(place.geocodeName || "").trim();
 
-            if (!found) {
-              return null;
-            }
+        const pieces = raw
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean);
 
-            const distanceMiles =
-              haversineMiles(
-                origin.latitude,
-                origin.longitude,
-                found.latitude,
-                found.longitude
-              );
+        /*
+          Open-Meteo is a geographic-place geocoder, not a
+          business-directory geocoder.
 
-            if (
-              distanceMiles >
-              radiusMiles
-            ) {
-              return null;
-            }
+          AI may return:
+          "Skydive Toledo, Toledo, Washington"
 
-            return {
-              name:
-                place.name,
+          We therefore try:
+          1. original value
+          2. final city/state pair
+          3. final city only
+        */
 
-              region:
-                found.region,
+        const cityState =
+          pieces.length >= 2
+            ? pieces.slice(-2).join(", ")
+            : raw;
 
-              category:
-                activity,
+        const cityOnly =
+          pieces.length >= 2
+            ? pieces[pieces.length - 2]
+            : raw;
 
-              description:
-                place.description ||
-                null,
+        const queries = Array.from(
+          new Set(
+            [
+              raw,
+              cityState,
+              cityOnly,
+            ].filter(Boolean)
+          )
+        );
 
-              latitude:
-                found.latitude,
+        let found:
+          | Awaited<ReturnType<typeof geocodeLocation>>
+          | null = null;
 
-              longitude:
-                found.longitude,
+        for (const query of queries) {
+          const result =
+            await geocodeLocation(query);
 
-              distanceMiles:
-                Math.round(
-                  distanceMiles *
-                    10
-                ) / 10,
-            } satisfies Candidate;
-          } catch {
-            return null;
+          if (result) {
+            found = result;
+            break;
           }
         }
-      )
-    );
+
+        if (!found) {
+          console.warn(
+            "AIR VERIFY GEOCODE FAILED",
+            {
+              activity,
+              name: place.name,
+              geocodeName:
+                place.geocodeName,
+              attemptedQueries:
+                queries,
+            }
+          );
+
+          return null;
+        }
+
+        const distanceMiles =
+          haversineMiles(
+            origin.latitude,
+            origin.longitude,
+            found.latitude,
+            found.longitude
+          );
+
+        if (
+          distanceMiles >
+          radiusMiles
+        ) {
+          console.warn(
+            "AIR VERIFY OUTSIDE RADIUS",
+            {
+              activity,
+              name: place.name,
+              distanceMiles,
+              radiusMiles,
+            }
+          );
+
+          return null;
+        }
+
+        return {
+          name: place.name,
+
+          region:
+            found.region,
+
+          category:
+            activity,
+
+          description:
+            place.description ||
+            null,
+
+          latitude:
+            found.latitude,
+
+          longitude:
+            found.longitude,
+
+          distanceMiles:
+            Math.round(
+              distanceMiles * 10
+            ) / 10,
+        } satisfies Candidate;
+      } catch (error) {
+        console.error(
+          "AIR VERIFY ERROR",
+          {
+            activity,
+            place,
+            error,
+          }
+        );
+
+        return null;
+      }
+    })
+  );
 
   const deduped =
-    new Map<
-      string,
-      Candidate
-    >();
+    new Map<string, Candidate>();
 
-  for (
-    const candidate of
-    checked
-  ) {
+  for (const candidate of checked) {
     if (!candidate) {
       continue;
     }
@@ -923,11 +991,7 @@ async function verifyCandidates(
         3
       )}`.toLowerCase();
 
-    if (
-      !deduped.has(
-        key
-      )
-    ) {
+    if (!deduped.has(key)) {
       deduped.set(
         key,
         candidate
@@ -2705,20 +2769,23 @@ export async function POST(
        DISCOVER REAL ACTIVITY AREAS
     ===================================================== */
 
-    const places =
-      await discoverActivityPlaces(
-        origin,
-        activity,
-        radiusMiles
-      );
+  const places =
+  await discoverActivityPlaces(
+    origin,
+    activity,
+    radiusMiles
+  );
 
-    const candidates =
-      await verifyCandidates(
-        places,
-        origin,
-        radiusMiles,
-        activity
-      );
+
+const candidates =
+  await verifyCandidates(
+    places,
+    origin,
+    radiusMiles,
+    activity
+  );
+
+
 
     if (
       candidates.length ===
