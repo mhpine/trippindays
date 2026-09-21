@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import { createClient } from "@/lib/supabase/client";
+
 import StampGrid from "@/components/passport/StampGrid";
 import StampModal from "@/components/passport/StampModal";
 import SiteHeader from "@/components/SiteHeader";
@@ -12,19 +18,43 @@ import type {
 } from "@/lib/passportTypes";
 
 export default function PassportPage() {
-  const [passportStamps, setPassportStamps] = useState<PassportStamp[]>([]);
-  const [earnedStamps, setEarnedStamps] = useState<EarnedStamp[]>([]);
-  const [showAllStamps, setShowAllStamps] = useState(false);
+  const [
+    passportStamps,
+    setPassportStamps,
+  ] = useState<PassportStamp[]>([]);
 
-  const [selectedStamp, setSelectedStamp] =
-    useState<PassportStamp | null>(null);
+  const [
+    earnedStamps,
+    setEarnedStamps,
+  ] = useState<EarnedStamp[]>([]);
 
-  const [selectedPhotoUrl, setSelectedPhotoUrl] =
-    useState<string | null>(null);
+  const [
+    showAllStamps,
+    setShowAllStamps,
+  ] = useState(false);
 
-  const [loading, setLoading] = useState(true);
-  const [signedIn, setSignedIn] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [
+    selectedStamp,
+    setSelectedStamp,
+  ] = useState<PassportStamp | null>(
+    null
+  );
+
+  const [
+    selectedPhotoUrl,
+    setSelectedPhotoUrl,
+  ] = useState<string | null>(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [signedIn, setSignedIn] =
+    useState(false);
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState("");
 
   useEffect(() => {
     void loadPassport();
@@ -150,7 +180,10 @@ export default function PassportPage() {
       showAllStamps
         ? passportStamps
         : passportStamps.slice(0, 10),
-    [passportStamps, showAllStamps]
+    [
+      passportStamps,
+      showAllStamps,
+    ]
   );
 
   const selectedEarnedStamp =
@@ -166,7 +199,8 @@ export default function PassportPage() {
     unlockedSlugs.length;
 
   const lockedCount = Math.max(
-    passportStamps.length - collectedCount,
+    passportStamps.length -
+      collectedCount,
     0
   );
 
@@ -211,7 +245,9 @@ export default function PassportPage() {
       data,
       error,
     } = await supabase.storage
-      .from("stamp-verification-photos")
+      .from(
+        "stamp-verification-photos"
+      )
       .createSignedUrl(
         earned.verification_photo_path,
         60 * 10
@@ -228,61 +264,60 @@ export default function PassportPage() {
     <main className="min-h-screen bg-[#061426] text-white">
       <SiteHeader />
 
-      {/* PASSPORT HERO / BANNER */}
-      <section
-        className="relative min-h-[380px] overflow-hidden border-b border-white/10"
-        style={{
-          backgroundImage:
-            "url('/images/passport1.png')",
-          backgroundSize: "cover",
-          backgroundPosition: "center 5%",
-          backgroundRepeat: "no-repeat",
-        }}
-      >
-        {/* Dark overlay so text stays readable */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/35 to-[#061426]/95" />
+      {/* =========================
+          PASSPORT HERO PHOTO
+          Image is in normal document flow.
+          Stats cannot overlap this section.
+      ========================== */}
+      <section className="relative w-full overflow-hidden">
+        <img
+          src="/images/passport1.png"
+          alt="TrippinDays Passport"
+          className="block h-[380px] w-full object-cover sm:h-[430px]"
+        />
 
-        <div className="relative mx-auto max-w-7xl px-6 py-16">
-          <p className="text-sm font-black uppercase tracking-[0.28em] text-cyan-300">
-            Your Travel Log
-          </p>
+        <div className="absolute inset-0 bg-gradient-to-r from-black/65 via-black/30 to-transparent" />
 
-          <h1 className="mt-5 text-5xl font-black drop-shadow-lg sm:text-6xl">
-            My Passport
-          </h1>
+        <div className="absolute inset-0 z-10">
+          <div className="mx-auto flex h-full max-w-7xl items-center px-6">
+            <div>
+              <p className="text-sm font-black uppercase tracking-[0.28em] text-cyan-300">
+                Your Travel Log
+              </p>
 
-          <p className="mt-5 max-w-2xl text-xl leading-8 text-white/90 drop-shadow">
-            Visit destinations, verify
-            your location, add a photo,
-            and collect a stamp. 
-            Collect them all.
-            
-          </p>
+              <h1 className="mt-4 text-5xl font-black drop-shadow-lg sm:text-6xl">
+                My Passport 
+              </h1>
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <p className="mt-5 max-w-2xl text-xl leading-8 text-white/90 drop-shadow">
+                Visit destinations, verify your location, add a photo,
+                and unlock a stamp. Collect them all.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* =========================
+          PASSPORT STATS
+          Separate section BELOW hero
+      ========================== */}
+      <section className="relative w-full border-b border-white/10 bg-[#061426]">
+        <div className="mx-auto max-w-7xl px-6 py-7">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <StatCard
               label="Available"
-              value={
-                passportStamps.length
-              }
+              value={passportStamps.length}
             />
 
             <StatCard
               label="Collected"
-              value={
-                loading
-                  ? "…"
-                  : collectedCount
-              }
+              value={loading ? "…" : collectedCount}
             />
 
             <StatCard
               label="Locked"
-              value={
-                loading
-                  ? "…"
-                  : lockedCount
-              }
+              value={loading ? "…" : lockedCount}
             />
 
             <StatCard
@@ -296,7 +331,7 @@ export default function PassportPage() {
             />
           </div>
 
-          <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/15 backdrop-blur-sm">
+          <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/15">
             <div
               className="h-full rounded-full bg-cyan-400 transition-all duration-500"
               style={{
@@ -307,19 +342,24 @@ export default function PassportPage() {
         </div>
       </section>
 
-      {/* PASSPORT CONTENT */}
+      {/* =========================
+          PASSPORT CONTENT
+      ========================== */}
       <section className="mx-auto max-w-7xl px-6 py-10 pb-28">
+
+        {/* SIGN IN NOTICE */}
         {!signedIn && !loading && (
           <div className="mb-6 rounded-3xl border border-amber-300/20 bg-amber-400/10 p-6">
+
             <h2 className="text-2xl font-black">
               Sign in to collect stamps
             </h2>
 
             <p className="mt-2 text-white/65">
               You may browse available
-              stamps, but earned stamps are
-              saved to your TrippinDays
-              account.
+              stamps, but earned stamps
+              are saved to your
+              TrippinDays account.
             </p>
 
             <a
@@ -331,8 +371,10 @@ export default function PassportPage() {
           </div>
         )}
 
+        {/* ERROR */}
         {errorMessage && (
           <div className="mb-6 rounded-3xl border border-red-400/20 bg-red-500/10 p-6">
+
             <h2 className="text-xl font-black text-red-200">
               Passport Error
             </h2>
@@ -353,8 +395,13 @@ export default function PassportPage() {
           </div>
         )}
 
+        {/* =========================
+            PASSPORT STAMPS
+        ========================== */}
         <section className="rounded-[2rem] border border-white/10 bg-[#102b4a]/90 p-6 shadow-2xl">
+
           <div className="flex flex-wrap items-center justify-between gap-4">
+
             <div>
               <p className="text-sm font-black uppercase tracking-widest text-cyan-300">
                 Collection
@@ -384,29 +431,37 @@ export default function PassportPage() {
             )}
           </div>
 
+          {/* LOADING */}
           {loading ? (
             <div className="py-20 text-center">
+
               <div className="text-5xl">
                 🛂
               </div>
 
               <p className="mt-4 font-bold text-white/60">
-                Loading your passport...
+                Loading your
+                passport...
               </p>
             </div>
           ) : passportStamps.length ===
             0 ? (
+
+            /* NO STAMPS */
             <div className="py-20 text-center">
+
               <div className="text-5xl">
                 📭
               </div>
 
               <p className="mt-4 font-bold text-white/60">
-                No approved stamps are
-                available yet.
+                No approved stamps
+                are available yet.
               </p>
             </div>
           ) : (
+
+            /* STAMP GRID */
             <StampGrid
               stamps={visibleStamps}
               unlockedSlugs={
@@ -424,21 +479,32 @@ export default function PassportPage() {
         </section>
       </section>
 
+      {/* =========================
+          STAMP MODAL
+      ========================== */}
       <StampModal
         stamp={selectedStamp}
         earnedAt={
           selectedEarnedStamp
             ?.earned_at ?? null
         }
-        photoUrl={selectedPhotoUrl}
+        photoUrl={
+          selectedPhotoUrl
+        }
         onClose={() => {
           setSelectedStamp(null);
-          setSelectedPhotoUrl(null);
+          setSelectedPhotoUrl(
+            null
+          );
         }}
       />
     </main>
   );
 }
+
+/* =============================
+   STAT CARD
+============================= */
 
 function StatCard({
   label,
@@ -448,7 +514,8 @@ function StatCard({
   value: string | number;
 }) {
   return (
-    <div className="rounded-3xl border border-white/20 bg-black/30 p-5 shadow-lg backdrop-blur-md">
+    <div className="rounded-3xl border border-white/20 bg-[#102b4a] p-5 shadow-lg">
+
       <p className="text-sm font-bold text-white/60">
         {label}
       </p>

@@ -1448,7 +1448,7 @@ ${combinedTripRequest}
                     "'Arial Black', 'Arial Narrow', Impact, Haettenschweiler, sans-serif",
                 }}
               >
-                Get Away
+                Choose Your Own Adventure
               </div>
 
               <div className="mt-3 flex items-baseline justify-end gap-3 sm:gap-4">
@@ -1459,7 +1459,7 @@ ${combinedTripRequest}
                       "'Arial Black', Impact, Haettenschweiler, sans-serif",
                   }}
                 >
-                  with
+                  with 
                 </span>
 
                 <span
@@ -1475,11 +1475,8 @@ ${combinedTripRequest}
 
               <div className="mt-6">
                 <p className="text-base font-black text-white drop-shadow-[0_3px_4px_rgba(0,0,0,0.9)] sm:text-lg lg:text-xl">
-                  Tell us what you&apos;ve got.
-                </p>
-
-                <p className="mt-1 text-base font-black text-white drop-shadow-[0_3px_4px_rgba(0,0,0,0.9)] sm:text-lg lg:text-xl">
-                  We&apos;ll figure out where to go.
+                  Infinite Adventures. Planned Just For You. 
+                
                 </p>
               </div>
             </div>

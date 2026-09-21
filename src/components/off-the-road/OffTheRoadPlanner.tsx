@@ -830,6 +830,11 @@ export default function OffTheRoadPlanner() {
   const [huntType, setHuntType] = useState("Big Game");
   const [selectedHuntPlan, setSelectedHuntPlan] =
     useState<RegionalHuntPlan | null>(null);
+  const [huntSpecies, setHuntSpecies] = useState("");
+  const [huntMethod, setHuntMethod] = useState("");
+  const [huntUnit, setHuntUnit] = useState("");
+  const [verifyingHuntDetails, setVerifyingHuntDetails] =
+    useState(false);
   const [startingLocation, setStartingLocation] = useState("");
 
   const {
@@ -946,6 +951,10 @@ export default function OffTheRoadPlanner() {
 
   useEffect(() => {
     setSelectedHuntPlan(null);
+    setHuntSpecies("");
+    setHuntMethod("");
+    setHuntUnit("");
+    setVerifyingHuntDetails(false);
   }, [huntingRegion.key]);
 
   /* =========================================================
@@ -1515,6 +1524,179 @@ Do not invent current closures, permit availability, business hours or road cond
     sendPremiumTripRequest(requestText.trim());
   }
 
+  async function verifySelectedHuntDetails() {
+    if (!selectedHuntPlan) return;
+
+    const species = huntSpecies.trim();
+    const method = huntMethod.trim();
+    const unit = huntUnit.trim();
+
+    if (!species || !method || !unit) {
+      setMessage(
+        "Enter the species, hunting method, and GMU / unit / zone before verifying."
+      );
+      return;
+    }
+
+    setVerifyingHuntDetails(true);
+    setMessage("");
+
+    try {
+      const response = await fetch(
+        "/api/off-the-road/hunting-status",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+          body: JSON.stringify({
+            location: startingLocation,
+            latitude:
+              location?.latitude ??
+              deviceLocation?.latitude,
+            longitude:
+              location?.longitude ??
+              deviceLocation?.longitude,
+            stateCode:
+              huntingRegion.stateCode || "",
+            stateName:
+              huntingRegion.stateName || "",
+            regionName: huntingRegion.regionName,
+            country:
+              deviceLocation?.country ||
+              "United States",
+            agencyName:
+              huntingRegion.agencyName || "",
+            agencyUrl:
+              huntingRegion.agencyUrl || "",
+            date: new Date()
+              .toISOString()
+              .slice(0, 10),
+            plans: [
+              {
+                key: selectedHuntPlan.title,
+                huntType:
+                  selectedHuntPlan.huntType,
+                speciesFocus: `
+EXACT HUNT TO VERIFY:
+Species: ${species}
+Method / weapon category: ${method}
+Unit / GMU / Zone: ${unit}
+
+Do not substitute another species, method, unit, zone or season.
+
+Only return OPEN if this exact combination can be verified as currently legal from official wildlife-agency information.
+                `.trim(),
+                species,
+                method,
+                unit,
+              },
+            ],
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "Could not verify this hunt."
+        );
+      }
+
+      const found = Array.isArray(data?.results)
+        ? data.results.find(
+            (item: any) =>
+              item?.key === selectedHuntPlan.title
+          )
+        : null;
+
+      const verifiedStatus: HuntSeasonStatus = {
+        key: selectedHuntPlan.title,
+        status:
+          found?.status === "open" ||
+          found?.status === "closed"
+            ? found.status
+            : "unknown",
+        species:
+          typeof found?.species === "string" &&
+          found.species
+            ? found.species
+            : species,
+        season:
+          typeof found?.season === "string"
+            ? found.season
+            : "",
+        unit:
+          typeof found?.unit === "string" &&
+          found.unit
+            ? found.unit
+            : unit,
+        license:
+          typeof found?.license === "string"
+            ? found.license
+            : "",
+        bagLimit:
+          typeof found?.bagLimit === "string"
+            ? found.bagLimit
+            : "",
+        shootingHours:
+          typeof found?.shootingHours === "string"
+            ? found.shootingHours
+            : "",
+        access:
+          typeof found?.access === "string"
+            ? found.access
+            : "",
+        closures:
+          typeof found?.closures === "string"
+            ? found.closures
+            : "",
+        reason:
+          typeof found?.reason === "string"
+            ? found.reason
+            : "",
+        officialUrl:
+          typeof found?.officialUrl === "string" &&
+          found.officialUrl
+            ? found.officialUrl
+            : huntingRegion.agencyUrl || "",
+      };
+
+      setHuntSeasonChecks((current) => ({
+        ...current,
+        [selectedHuntPlan.title]:
+          verifiedStatus,
+      }));
+
+      if (verifiedStatus.status === "open") {
+        setMessage(
+          `✅ Verified: ${species} • ${method} • ${unit}`
+        );
+      } else if (
+        verifiedStatus.status === "closed"
+      ) {
+        setMessage(
+          `⛔ This exact hunt is not currently verified as open: ${species} • ${method} • ${unit}`
+        );
+      } else {
+        setMessage(
+          "⚠ TrippinDays could not fully verify this exact hunt. Check the official regulations before planning."
+        );
+      }
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not verify this hunt."
+      );
+    } finally {
+      setVerifyingHuntDetails(false);
+    }
+  }
+
   function planVerifiedHunt(
     hunt: RegionalHuntPlan,
     status: HuntSeasonStatus
@@ -1553,6 +1735,7 @@ CURRENT OFFICIAL SEASON CHECK:
 Status: IN SEASON
 Season: ${status.season || "See official regulations"}
 Unit / GMU / Zone: ${status.unit || "See official regulations"}
+Requested Hunting Method: ${huntMethod || "See official regulations"}
 License / Tag / Stamp: ${status.license || "See official regulations"}
 Bag Limit: ${status.bagLimit || "See official regulations"}
 Shooting Hours: ${status.shootingHours || "See official regulations"}
@@ -1814,49 +1997,205 @@ backgroundPosition: "center 70%",
                         {selectedHuntPlan.title}
                       </div>
 
-                      <div className="mt-1 text-xs font-semibold leading-5 text-white/75">
-                        Species focus: {selectedHuntPlan.speciesFocus}
-                      </div>
+                      <p className="mt-2 text-xs font-semibold leading-5 text-white/70">
+                        Big-game regulations can change by species, hunting method
+                        and management unit. Enter the exact hunt you want
+                        TrippinDays to check.
+                      </p>
 
-                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                        {[
-                          ["Species", selectedHuntPlan.speciesFocus],
-                          ["Season", "Official verification required"],
-                          ["Unit / GMU", "Official verification required"],
-                          ["License / Tag / Stamp", "Official verification required"],
-                          ["Bag Limit", "Official verification required"],
-                          ["Shooting Hours", "Official verification required"],
-                          ["Public / Private Access", "Official verification required"],
-                          ["Closures / Alerts", "Official verification required"],
-                        ].map(([label, value]) => (
-                          <div
-                            key={label}
-                            className="rounded-xl border border-white/10 bg-white/5 p-3"
+                      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                        <label>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-white/50">
+                            Species
+                          </span>
+
+                          <input
+                            value={huntSpecies}
+                            onChange={(event) =>
+                              setHuntSpecies(event.target.value)
+                            }
+                            placeholder="Deer, elk, moose..."
+                            className="mt-2 w-full rounded-xl border border-white/15 bg-white/10 px-3 py-3 text-sm font-bold text-white outline-none placeholder:text-white/35 focus:border-orange-400"
+                          />
+                        </label>
+
+                        <label>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-white/50">
+                            Method
+                          </span>
+
+                          <select
+                            value={huntMethod}
+                            onChange={(event) =>
+                              setHuntMethod(event.target.value)
+                            }
+                            className="mt-2 w-full rounded-xl border border-white/15 bg-stone-900 px-3 py-3 text-sm font-bold text-white outline-none focus:border-orange-400"
                           >
-                            <div className="text-[10px] font-black uppercase tracking-wider text-white/45">
-                              {label}
-                            </div>
-                            <div className="mt-1 text-xs font-bold text-white">
-                              {value}
-                            </div>
-                          </div>
-                        ))}
+                            <option value="">
+                              Choose method
+                            </option>
+                            <option value="Archery">
+                              Archery
+                            </option>
+                            <option value="Muzzleloader">
+                              Muzzleloader
+                            </option>
+                            <option value="Modern firearm">
+                              Modern firearm
+                            </option>
+                            <option value="Shotgun">
+                              Shotgun
+                            </option>
+                            <option value="Other legal method">
+                              Other legal method
+                            </option>
+                          </select>
+                        </label>
+
+                        <label>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-white/50">
+                            GMU / Unit / Zone
+                          </span>
+
+                          <input
+                            value={huntUnit}
+                            onChange={(event) =>
+                              setHuntUnit(event.target.value)
+                            }
+                            placeholder="Example: GMU 667"
+                            className="mt-2 w-full rounded-xl border border-white/15 bg-white/10 px-3 py-3 text-sm font-bold text-white outline-none placeholder:text-white/35 focus:border-orange-400"
+                          />
+                        </label>
                       </div>
 
-                      {huntingRegion.agencyUrl ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void verifySelectedHuntDetails()
+                        }
+                        disabled={verifyingHuntDetails}
+                        className="mt-4 w-full rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white transition hover:bg-orange-600 disabled:cursor-wait disabled:opacity-60"
+                      >
+                        {verifyingHuntDetails
+                          ? "VERIFYING WITH OFFICIAL INFORMATION..."
+                          : "🔎 VERIFY THIS HUNT"}
+                      </button>
+
+                      {huntSeasonChecks[
+                        selectedHuntPlan.title
+                      ]?.status === "open" && (
+                        <div className="mt-4 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-4">
+                          <div className="font-black text-emerald-300">
+                            ✓ CURRENT HUNT VERIFIED
+                          </div>
+
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            {[
+                              [
+                                "Species",
+                                huntSeasonChecks[
+                                  selectedHuntPlan.title
+                                ]?.species || huntSpecies,
+                              ],
+                              [
+                                "Season",
+                                huntSeasonChecks[
+                                  selectedHuntPlan.title
+                                ]?.season || "Verified",
+                              ],
+                              [
+                                "Unit / GMU / Zone",
+                                huntSeasonChecks[
+                                  selectedHuntPlan.title
+                                ]?.unit || huntUnit,
+                              ],
+                              [
+                                "Method",
+                                huntMethod,
+                              ],
+                              [
+                                "License / Tag / Stamp",
+                                huntSeasonChecks[
+                                  selectedHuntPlan.title
+                                ]?.license ||
+                                  "See official regulations",
+                              ],
+                              [
+                                "Bag Limit",
+                                huntSeasonChecks[
+                                  selectedHuntPlan.title
+                                ]?.bagLimit ||
+                                  "See official regulations",
+                              ],
+                              [
+                                "Shooting Hours",
+                                huntSeasonChecks[
+                                  selectedHuntPlan.title
+                                ]?.shootingHours ||
+                                  "See official regulations",
+                              ],
+                              [
+                                "Access",
+                                huntSeasonChecks[
+                                  selectedHuntPlan.title
+                                ]?.access ||
+                                  "See official regulations",
+                              ],
+                            ].map(([label, value]) => (
+                              <div
+                                key={label}
+                                className="rounded-xl border border-white/10 bg-white/5 p-3"
+                              >
+                                <div className="text-[10px] font-black uppercase tracking-wider text-white/45">
+                                  {label}
+                                </div>
+
+                                <div className="mt-1 text-xs font-bold">
+                                  {value}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              planVerifiedHunt(
+                                selectedHuntPlan,
+                                huntSeasonChecks[
+                                  selectedHuntPlan.title
+                                ]
+                              )
+                            }
+                            className="mt-4 w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-white hover:bg-emerald-600"
+                          >
+                            {isPremium
+                              ? "⭐ PLAN VERIFIED PREMIUM HUNT →"
+                              : "🔒 PREMIUM HUNT →"}
+                          </button>
+                        </div>
+                      )}
+
+                      {huntSeasonChecks[
+                        selectedHuntPlan.title
+                      ]?.status === "closed" && (
+                        <div className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm font-bold text-red-200">
+                          ⛔ This exact species, method and unit combination is
+                          not currently verified as open.
+                        </div>
+                      )}
+
+                      {huntingRegion.agencyUrl && (
                         <a
                           href={huntingRegion.agencyUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white transition hover:bg-orange-600"
+                          className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/15"
                         >
-                          VIEW OFFICIAL {huntingRegion.stateCode || ""} REGULATIONS ↗
+                          VIEW OFFICIAL{" "}
+                          {huntingRegion.stateCode || ""}{" "}
+                          REGULATIONS ↗
                         </a>
-                      ) : (
-                        <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-300/10 p-3 text-xs font-bold text-amber-100">
-                          Enter or use a U.S. starting location so TrippinDays can
-                          identify the correct wildlife agency.
-                        </div>
                       )}
                     </div>
                   )}
@@ -2309,80 +2648,121 @@ backgroundPosition: "center 70%",
                       </div>
                     </div>
                   </div>
+{(() => {
+  const season =
+    huntSeasonChecks[hunt.title];
 
-                  {(() => {
-                    const season =
-                      huntSeasonChecks[hunt.title];
+  const isChecking =
+    !season ||
+    season.status === "checking";
 
-                    const isChecking =
-                      !season ||
-                      season.status === "checking";
+  const isOpen =
+    season?.status === "open";
 
-                    const isOpen =
-                      season?.status === "open";
+  const isClosed =
+    season?.status === "closed";
 
-                    const isClosed =
-                      season?.status === "closed";
+  const needsBigGameDetails =
+    hunt.huntType === "Big Game" &&
+    !isChecking &&
+    !isOpen &&
+    !isClosed;
 
-                    return (
-                      <div className="mt-auto pt-4">
-                        <div
-                          className={`mb-2 rounded-xl px-3 py-2 text-center text-[11px] font-black uppercase tracking-wider ${
-                            isChecking
-                              ? "bg-stone-100 text-stone-500"
-                              : isOpen
-                                ? "bg-emerald-100 text-emerald-800"
-                                : isClosed
-                                  ? "bg-red-50 text-red-700"
-                                  : "bg-amber-50 text-amber-800"
-                          }`}
-                        >
-                          {isChecking
-                            ? "Checking current season..."
-                            : isOpen
-                              ? `✓ In Season${season.species ? ` • ${season.species}` : ""}`
-                              : isClosed
-                                ? "Not In Season"
-                                : "Season Not Verified"}
-                        </div>
+  return (
+    <div className="mt-auto pt-4">
+      <div
+        className={`mb-2 rounded-xl px-3 py-2 text-center text-[11px] font-black uppercase tracking-wider ${
+          isChecking
+            ? "bg-stone-100 text-stone-500"
+            : isOpen
+              ? "bg-emerald-100 text-emerald-800"
+              : isClosed
+                ? "bg-red-50 text-red-700"
+                : "bg-amber-50 text-amber-800"
+        }`}
+      >
+        {isChecking
+          ? "Checking current season..."
+          : isOpen
+            ? `✓ In Season${
+                season?.species
+                  ? ` • ${season.species}`
+                  : ""
+              }`
+            : isClosed
+              ? "Not In Season"
+              : needsBigGameDetails
+                ? "⚠ Details Needed"
+                : "Season Not Verified"}
+      </div>
 
-                        <button
-                          type="button"
-                          disabled={!isOpen}
-                          onClick={() => {
-                            if (season && isOpen) {
-                              planVerifiedHunt(
-                                hunt,
-                                season
-                              );
-                            }
-                          }}
-                          className={`w-full rounded-2xl px-4 py-3 text-sm font-black transition ${
-                            isOpen
-                              ? "bg-orange-500 text-white hover:bg-orange-600"
-                              : "cursor-not-allowed bg-stone-200 text-stone-500"
-                          }`}
-                        >
-                          {isChecking
-                            ? "CHECKING SEASON..."
-                            : isOpen
-                              ? isPremium
-                                ? "⭐ PLAN PREMIUM HUNT →"
-                                : "🔒 PREMIUM HUNT →"
-                              : isClosed
-                                ? "NOT IN SEASON"
-                                : "NOT AVAILABLE NOW"}
-                        </button>
+      <button
+        type="button"
+        disabled={
+          !isOpen &&
+          !needsBigGameDetails
+        }
+        onClick={() => {
+          if (season && isOpen) {
+            planVerifiedHunt(
+              hunt,
+              season
+            );
+            return;
+          }
 
-                        {!isChecking &&
-                          season?.reason && (
-                            <div className="mt-2 text-center text-[10px] font-semibold leading-4 text-stone-500">
-                              {season.reason}
-                            </div>
-                          )}
-                      </div>
-                    );
-                  })()}
+          if (needsBigGameDetails) {
+            setSelectedHuntPlan(hunt);
+            setHuntType("Big Game");
+            setHuntSpecies("");
+            setHuntMethod("");
+            setHuntUnit("");
+
+            setMessage(
+              "Big game seasons depend on the exact species, weapon or method, and GMU / hunting area. Review the required details before TrippinDays verifies this hunt."
+            );
+
+            window.setTimeout(() => {
+              document
+                .getElementById(
+                  "off-road-planner"
+                )
+                ?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                });
+            }, 50);
+          }
+        }}
+        className={`w-full rounded-2xl px-4 py-3 text-sm font-black transition ${
+          isOpen ||
+          needsBigGameDetails
+            ? "bg-orange-500 text-white hover:bg-orange-600"
+            : "cursor-not-allowed bg-stone-200 text-stone-500"
+        }`}
+      >
+        {isChecking
+          ? "CHECKING SEASON..."
+          : isOpen
+            ? isPremium
+              ? "⭐ PLAN PREMIUM HUNT →"
+              : "🔒 PREMIUM HUNT →"
+            : isClosed
+              ? "NOT IN SEASON"
+              : needsBigGameDetails
+                ? "CHECK BIG GAME DETAILS →"
+                : "NOT AVAILABLE NOW"}
+      </button>
+
+      {!isChecking &&
+        season?.reason && (
+          <div className="mt-2 text-center text-[10px] font-semibold leading-4 text-stone-500">
+            {season.reason}
+          </div>
+        )}
+    </div>
+  );
+})()}
                 </div>
               </article>
             ))}

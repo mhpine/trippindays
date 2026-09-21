@@ -69,7 +69,12 @@ export default function VerifyStampPage() {
   if (!stamp) return <main className="min-h-screen bg-[#061426] px-6 py-16 text-white"><div className="mx-auto max-w-xl rounded-3xl bg-white/10 p-8"><h1 className="text-3xl font-black">Stamp Not Found</h1><p className="mt-3 text-white/60">Slug received: {slug || "(empty)"}</p><a href="/passport" className="mt-6 inline-block font-bold text-cyan-300">Return to Passport</a></div></main>;
 
   const gpsConfigured = stamp.latitude !== null && stamp.longitude !== null;
-  const insideUnlockArea = gpsConfigured && distanceMeters !== null && distanceMeters <= stamp.unlock_radius;
+const insideUnlockArea =
+  gpsConfigured &&
+  distanceMeters !== null &&
+  position !== null &&
+  position.accuracy <= 200 &&
+  distanceMeters <= stamp.unlock_radius;
 
 function checkLocation() {
   const activeStamp = stamp;
@@ -99,7 +104,7 @@ function checkLocation() {
         const nextPosition = { latitude: result.coords.latitude, longitude: result.coords.longitude, accuracy: result.coords.accuracy };
         setPosition(nextPosition);
         setCheckingLocation(false);
-        const distance = calculateDistanceMeters(nextPosition.latitude, nextPosition.longitude, activeStamp.latitude!, stamp.longitude!);
+        const distance = calculateDistanceMeters(nextPosition.latitude, nextPosition.longitude, activeStamp.latitude!, activeStamp.longitude!);
         if (nextPosition.accuracy > 200) { setMessage(`GPS accuracy is about ${Math.round(nextPosition.accuracy)} meters. Move outdoors and try again.`); return; }
         if (distance > activeStamp.unlock_radius) { setMessage(`You are ${formatDistance(distance)} from ${activeStamp.name}. Move within ${formatDistance(stamp.unlock_radius)} to unlock it.`); return; }
         setMessage(`GPS confirmed. Now take a verification photo at ${activeStamp.name}.`);
