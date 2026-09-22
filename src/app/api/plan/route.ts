@@ -1038,7 +1038,7 @@ if (!response.output_text) {
   );
 }
 
-const cleanedText = response.output_text
+const cleanedText = response.output_text;
     const firstBrace =
       cleanedText.indexOf("{");
 
@@ -1084,22 +1084,36 @@ trip = JSON.parse(cleanedJson) as GeminiTrip;
 
       if (
         requestedCalendarDays !== null &&
-        requestedNightCount !== null &&
-        isEpicRoadTrip
+        requestedNightCount !== null
       ) {
+        const planText = trip.plan || "";
+
         const dayMatches = Array.from(
-          (trip.plan || "").matchAll(/\bDAY\s+(\d+)\b/gi)
+          planText.matchAll(/\bDAY\s+(\d+)\b/gi)
         ).map((match) => Number(match[1]));
 
         const uniqueDayNumbers = new Set(dayMatches);
-        const overnightCount = (
-          (trip.plan || "").match(/TONIGHT IN\s+[^\n]+/gi) || []
-        ).length;
+
+        const overnightMatches = Array.from(
+          planText.matchAll(/TONIGHT IN\s+([^\n]+)/gi)
+        );
+
+        const overnightCount = overnightMatches.length;
+
+        const hasEveryDay = Array.from(
+          { length: requestedCalendarDays },
+          (_, index) => index + 1
+        ).every((dayNumber) => uniqueDayNumbers.has(dayNumber));
+
+        const hasExtraDay = Array.from(uniqueDayNumbers).some(
+          (dayNumber) => dayNumber > requestedCalendarDays
+        );
 
         const lengthIsWrong =
+          !hasEveryDay ||
+          hasExtraDay ||
           uniqueDayNumbers.size !== requestedCalendarDays ||
-          overnightCount !== requestedNightCount ||
-          uniqueDayNumbers.has(requestedCalendarDays + 1);
+          overnightCount !== requestedNightCount;
 
         if (lengthIsWrong) {
           const correctionPrompt = `${basePrompt}
@@ -1110,8 +1124,15 @@ CRITICAL CORRECTION — YOUR PREVIOUS OUTPUT FAILED THE HARD TRIP LENGTH CHECK:
 - Required final day: Day ${requestedCalendarDays}.
 - Required final endpoint: ORIGINAL STARTING LOCATION by about 5:00 PM local time.
 - NEVER include Day ${requestedCalendarDays + 1}.
-- Include EXACTLY ${requestedNightCount} TONIGHT IN sections, one for each night away from home.
-- Do not remove lodging. Do not add extra lodging.
+- Include EXACTLY ${requestedNightCount} TONIGHT IN sections.
+- Every DAY except the FINAL DAY must end with exactly one TONIGHT IN [CITY / AREA] section unless the traveler actually returns to the original starting location that night.
+- Do not skip any overnight date.
+- Do not combine multiple missing nights into one vague lodging section.
+- Each overnight section must correspond to the calendar night immediately following that day's itinerary.
+- Consecutive nights in the same city are allowed, but each calendar night must still be accounted for in the itinerary.
+- The FINAL DAY is the return-home day and must NOT contain a TONIGHT IN section after reaching home.
+- Do not remove lodging.
+- Do not add extra lodging.
 - Rebuild the COMPLETE JSON response from scratch so the itinerary satisfies these requirements.
 - Keep the requested destination unless the round trip is mathematically impossible under the daily driving ceiling.
 - Remember: a roughly 12-hour one-way trip with a 6-hour daily driving ceiling takes 2 driving days each way, so a 5-day round trip is practical with 1 destination day.
