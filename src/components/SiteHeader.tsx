@@ -97,7 +97,7 @@ const [isPremium, setIsPremium] = useState(false);
 
         <nav className="hidden items-center gap-5 text-sm font-black xl:flex" aria-label="Primary navigation">
           <a href="/#planner" className={navLink}>
-  Plan a Trip
+  Road Trip
 </a>
 
 <a href="/on-the-water" className={navLink}>

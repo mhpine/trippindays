@@ -2367,87 +2367,118 @@ backgroundPosition: "center 70%",
                   </p>
                 </div>
               ) : (
-                results.map((place) => (
-                  <button
-                    key={place.id}
-                    type="button"
-                    onClick={() => setSelectedId(place.id)}
-                    className={`w-full rounded-3xl border bg-white p-5 text-left shadow-sm transition ${
-                      selectedId === place.id
-                        ? "border-orange-400 ring-2 ring-orange-100"
-                        : "border-stone-200 hover:border-[#7a8f58]"
-                    }`}
-                  >
-                    <div className="flex gap-4">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-800 text-sm font-black text-white">
-                        #{place.rank}
-                      </div>
+                results.map((place) => {
+                  const isSelected = selectedId === place.id;
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <div className="text-lg font-black text-stone-900">
-                              {place.name}
+                  return (
+                    <div
+                      key={place.id}
+                      className="space-y-2"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setSelectedId(place.id)}
+                        className={`w-full rounded-3xl border bg-white p-5 text-left shadow-sm transition ${
+                          isSelected
+                            ? "border-orange-400 ring-2 ring-orange-100"
+                            : "border-stone-200 hover:border-[#7a8f58]"
+                        }`}
+                      >
+                        <div className="flex gap-4">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-800 text-sm font-black text-white">
+                            #{place.rank}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <div className="text-lg font-black text-stone-900">
+                                  {place.name}
+                                </div>
+                                <div className="mt-1 text-xs font-bold text-stone-500">
+                                  {place.region || place.category || activity}
+                                </div>
+                              </div>
+
+                              <div className="rounded-full bg-[#edf0e7] px-3 py-1 text-xs font-black text-[#42552f]">
+                                {place.score}/100
+                              </div>
                             </div>
-                            <div className="mt-1 text-xs font-bold text-stone-500">
-                              {place.region || place.category || activity}
+
+                            <div className="mt-3 text-sm font-black text-orange-700">
+                              {place.label}
                             </div>
-                          </div>
 
-                          <div className="rounded-full bg-[#edf0e7] px-3 py-1 text-xs font-black text-[#42552f]">
-                            {place.score}/100
+                            <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                              <Stat
+                                label="Distance"
+                                value={`${place.distanceMiles} mi`}
+                              />
+                              <Stat
+                                label="Temp"
+                                value={
+                                  place.temperatureF == null
+                                    ? "—"
+                                    : `${place.temperatureF}°F`
+                                }
+                              />
+                              <Stat
+                                label="Wind"
+                                value={
+                                  place.wind == null
+                                    ? "—"
+                                    : `${place.wind} mph`
+                                }
+                              />
+                              <Stat
+                                label="Snow"
+                                value={
+                                  place.snowfall == null
+                                    ? "—"
+                                    : `${place.snowfall} in`
+                                }
+                              />
+                              <Stat
+                                label="Elevation"
+                                value={
+                                  place.elevationFeet == null
+                                    ? "—"
+                                    : `${Math.round(
+                                        place.elevationFeet
+                                      ).toLocaleString()} ft`
+                                }
+                              />
+                              <Stat
+                                label="Difficulty"
+                                value={place.difficulty || "Varies"}
+                              />
+                            </div>
+
+                            {place.accessNote && (
+                              <div className="mt-3 rounded-xl bg-stone-50 p-3 text-xs font-semibold leading-5 text-stone-600">
+                                {place.accessNote}
+                              </div>
+                            )}
                           </div>
                         </div>
+                      </button>
 
-                        <div className="mt-3 text-sm font-black text-orange-700">
-                          {place.label}
-                        </div>
-
-                        <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-                          <Stat label="Distance" value={`${place.distanceMiles} mi`} />
-                          <Stat
-                            label="Temp"
-                            value={
-                              place.temperatureF == null
-                                ? "—"
-                                : `${place.temperatureF}°F`
-                            }
-                          />
-                          <Stat
-                            label="Wind"
-                            value={place.wind == null ? "—" : `${place.wind} mph`}
-                          />
-                          <Stat
-                            label="Snow"
-                            value={
-                              place.snowfall == null
-                                ? "—"
-                                : `${place.snowfall} in`
-                            }
-                          />
-                          <Stat
-                            label="Elevation"
-                            value={
-                              place.elevationFeet == null
-                                ? "—"
-                                : `${Math.round(place.elevationFeet).toLocaleString()} ft`
-                            }
-                          />
-                          <Stat
-                            label="Difficulty"
-                            value={place.difficulty || "Varies"}
-                          />
-                        </div>
-
-                        {place.accessNote && (
-                          <div className="mt-3 rounded-xl bg-stone-50 p-3 text-xs font-semibold leading-5 text-stone-600">
-                            {place.accessNote}
-                          </div>
+                      {isSelected &&
+                        !premiumLoading &&
+                        isPremium && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void launchOffRoadPremium("full");
+                            }}
+                            className="w-full rounded-2xl bg-orange-500 px-5 py-3.5 text-sm font-black text-white shadow-sm transition hover:bg-orange-600"
+                          >
+                            PLAN THIS TRIP — {place.name} →
+                          </button>
                         )}
-                      </div>
                     </div>
-                  </button>
-                ))
+                  );
+                })
               )}
             </div>
 

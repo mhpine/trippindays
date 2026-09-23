@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import OpenAI from "openai";
 
 type Candidate = {
   name: string;
@@ -139,6 +140,8 @@ function buildOverpassQuery(
       `nwr${around}["route"="hiking"]["name"];`,
       `nwr${around}["route"="foot"]["name"];`,
       `nwr${around}["information"="trailhead"]["name"];`,
+      `nwr${around}["leisure"="nature_reserve"]["name"];`,
+      `nwr${around}["boundary"="national_park"]["name"];`,
       `nwr${around}["natural"="peak"]["name"];`,
     ];
   } else if (activity === "Dog-Friendly Trails") {
@@ -163,23 +166,23 @@ function buildOverpassQuery(
       `nwr${around}["atv"~"yes|designated"]["name"];`,
       `nwr${around}["route"="atv"]["name"];`,
       `nwr${around}["sport"="motocross"]["name"];`,
-      `nwr${around}["highway"="track"]["name"];`,
+      `nwr${around}["highway"="track"]["atv"~"yes|designated"]["name"];`,
     ];
   } else if (activity === "Dirt Bikes") {
     lines = [
       `nwr${around}["motorcycle"~"yes|designated"]["name"];`,
       `nwr${around}["sport"="motocross"]["name"];`,
       `nwr${around}["highway"="raceway"]["name"];`,
-      `nwr${around}["highway"="track"]["name"];`,
+      `nwr${around}["highway"="track"]["motorcycle"~"yes|designated"]["name"];`,
     ];
   } else if (
     activity === "4x4 / Off-Road" ||
     activity === "Overlanding"
   ) {
     lines = [
-      `nwr${around}["highway"="track"]["name"];`,
       `nwr${around}["4wd_only"="yes"]["name"];`,
-      `nwr${around}["route"="road"]["name"];`,
+      `nwr${around}["highway"="track"]["4wd_only"="yes"]["name"];`,
+      `nwr${around}["highway"="track"]["motor_vehicle"~"yes|designated"]["name"];`,
       `nwr${around}["tourism"="camp_site"]["name"];`,
     ];
   } else if (activity === "Horseback Riding") {
@@ -238,7 +241,7 @@ function buildOverpassQuery(
     lines = [
       `nwr${around}["snowmobile"~"yes|designated"]["name"];`,
       `nwr${around}["route"="snowmobile"]["name"];`,
-      `nwr${around}["highway"="track"]["name"];`,
+      `nwr${around}["highway"="track"]["snowmobile"~"yes|designated"]["name"];`,
     ];
   } else if (activity === "Sledding / Tubing") {
     lines = [
@@ -255,23 +258,31 @@ function buildOverpassQuery(
   }
 
   return `
-[out:json][timeout:18];
+[out:json][timeout:20];
 (
 ${lines.join("\n")}
 );
-out tags center 120;
+out tags center 100;
 `;
 }
 
 async function queryOverpass(query: string) {
+  /*
+    Overpass is now a SECONDARY discovery source.
+    Keep timeouts short so a slow public instance does not
+    make the whole TrippinDays search feel broken.
+  */
   const endpoints = [
-    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     "https://overpass-api.de/api/interpreter",
   ];
 
+  const errors: string[] = [];
+
   for (const endpoint of endpoints) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 22000);
+    const timer = setTimeout(() => controller.abort(), 8000);
 
     try {
       const response = await fetch(endpoint, {
@@ -280,23 +291,64 @@ async function queryOverpass(query: string) {
           "Content-Type":
             "application/x-www-form-urlencoded;charset=UTF-8",
           Accept: "application/json",
+          "User-Agent": "TrippinDays/1.0 (https://trippindays.com)",
         },
-        body: new URLSearchParams({ data: query }).toString(),
+        body: "data=" + encodeURIComponent(query),
         signal: controller.signal,
         cache: "no-store",
       });
 
-      if (!response.ok) continue;
+      if (response.status === 429) {
+        const message = `${endpoint} returned HTTP 429`;
+        errors.push(message);
+        console.warn("OVERPASS RATE LIMITED:", endpoint);
+        continue;
+      }
 
-      return await response.json();
+      if (!response.ok) {
+        const message = `${endpoint} returned HTTP ${response.status}`;
+        errors.push(message);
+        console.warn("OVERPASS FAILED:", message);
+        continue;
+      }
+
+      const data = await response.json();
+
+      if (!Array.isArray(data?.elements)) {
+        const message = `${endpoint} returned invalid data`;
+        errors.push(message);
+        console.warn("OVERPASS INVALID RESPONSE:", endpoint);
+        continue;
+      }
+
+      console.log(
+        "OVERPASS SUCCESS:",
+        endpoint,
+        data.elements.length,
+        "elements"
+      );
+
+      return data;
     } catch (error) {
-      console.error("Off the Road Overpass error:", error);
+      const aborted =
+        error instanceof Error &&
+        (error.name === "AbortError" ||
+          error.message.toLowerCase().includes("aborted"));
+
+      const message = aborted
+        ? `${endpoint} timed out`
+        : error instanceof Error
+          ? `${endpoint}: ${error.message}`
+          : `${endpoint}: unknown error`;
+
+      errors.push(message);
+      console.warn("OVERPASS ERROR:", message);
     } finally {
       clearTimeout(timer);
     }
   }
 
-  return null;
+  throw new Error(errors.join(" | "));
 }
 
 function kindForActivity(activity: string) {
@@ -459,57 +511,947 @@ function elementsToCandidates(
     .slice(0, 16);
 }
 
-async function discoverCandidates(
+type PhotonFeature = {
+  geometry?: {
+    type?: string;
+    coordinates?: number[];
+  };
+  properties?: {
+    name?: string;
+    state?: string;
+    county?: string;
+    city?: string;
+    country?: string;
+    osm_key?: string;
+    osm_value?: string;
+  };
+};
+
+function photonSearchTerm(activity: string) {
+  const terms: Record<string, string> = {
+    Hiking: "trail",
+    Backpacking: "trail",
+    "Trail Running": "trail",
+    "Dog-Friendly Trails": "trail",
+
+    "Mountain Biking": "mountain bike trail",
+    "Gravel Biking": "bike trail",
+    "Fat-Tire Biking": "bike trail",
+
+    "ATV / UTV": "ATV trail",
+    "Dirt Bikes": "motocross",
+    "4x4 / Off-Road": "off road",
+    Overlanding: "campground",
+
+    "Horseback Riding": "equestrian",
+
+    "Caving / Spelunking": "cave",
+    Mountaineering: "mountain",
+    "Rock Climbing": "climbing",
+    Bouldering: "bouldering",
+
+    "Downhill Skiing": "ski",
+    Snowboarding: "ski",
+    "Cross-Country Skiing": "nordic ski",
+    Snowshoeing: "snowshoe",
+    Snowmobiling: "snowmobile",
+    "Sledding / Tubing": "sledding",
+
+    "Seasonal Picks": "park",
+    "Surprise Me": "park",
+  };
+
+  return terms[activity] || activity;
+}
+
+function photonBoundingBox(
+  latitude: number,
+  longitude: number,
+  radiusMiles: number
+) {
+  const latDelta = radiusMiles / 69;
+  const cosLat = Math.max(
+    0.2,
+    Math.cos(toRad(latitude))
+  );
+  const lonDelta =
+    radiusMiles / (69 * cosLat);
+
+  return {
+    minLon: longitude - lonDelta,
+    minLat: latitude - latDelta,
+    maxLon: longitude + lonDelta,
+    maxLat: latitude + latDelta,
+  };
+}
+
+async function discoverPhotonCandidates(
   originLat: number,
   originLon: number,
   radiusMiles: number,
   activity: string
-) {
-  const requestedRadii = [
-    Math.min(radiusMiles, 50),
-    Math.min(radiusMiles, 100),
-    radiusMiles,
-  ];
+): Promise<Candidate[]> {
+  const box = photonBoundingBox(
+    originLat,
+    originLon,
+    radiusMiles
+  );
 
-  const uniqueRadii = Array.from(
-    new Set(
-      requestedRadii
-        .map((value) => Math.max(10, Math.round(value)))
-        .filter((value) => value <= radiusMiles)
+  const params = new URLSearchParams({
+    q: photonSearchTerm(activity),
+    lat: String(originLat),
+    lon: String(originLon),
+    bbox: [
+      box.minLon,
+      box.minLat,
+      box.maxLon,
+      box.maxLat,
+    ].join(","),
+    limit: "20",
+    lang: "en",
+    dedupe: "0",
+  });
+
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    8000
+  );
+
+  try {
+    const response = await fetch(
+      `https://photon.komoot.io/api/?${params.toString()}`,
+      {
+        headers: {
+          Accept: "application/json",
+          "User-Agent":
+            "TrippinDays/1.0 (https://trippindays.com)",
+        },
+        signal: controller.signal,
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      console.warn(
+        "PHOTON FAILED:",
+        response.status
+      );
+      return [];
+    }
+
+    const data = await response.json();
+    const features: PhotonFeature[] =
+      Array.isArray(data?.features)
+        ? data.features
+        : [];
+
+    const seen = new Set<string>();
+    const candidates: Candidate[] = [];
+
+    for (const feature of features) {
+      const coordinates =
+        feature?.geometry?.coordinates;
+
+      if (
+        !Array.isArray(coordinates) ||
+        coordinates.length < 2
+      ) {
+        continue;
+      }
+
+      const longitude = Number(
+        coordinates[0]
+      );
+      const latitude = Number(
+        coordinates[1]
+      );
+
+      if (
+        !Number.isFinite(latitude) ||
+        !Number.isFinite(longitude)
+      ) {
+        continue;
+      }
+
+      const name =
+        feature?.properties?.name?.trim();
+
+      if (!name) continue;
+
+      const distance = distanceMiles(
+        originLat,
+        originLon,
+        latitude,
+        longitude
+      );
+
+      if (distance > radiusMiles) {
+        continue;
+      }
+
+      const key =
+        `${name.toLowerCase()}:` +
+        `${latitude.toFixed(3)}:` +
+        `${longitude.toFixed(3)}`;
+
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const region = [
+        feature?.properties?.city,
+        feature?.properties?.county,
+        feature?.properties?.state,
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      candidates.push({
+        name,
+        region: region || undefined,
+        latitude,
+        longitude,
+        kind: kindForActivity(activity),
+        distanceMiles:
+          Math.round(distance * 10) / 10,
+        priority: 1,
+        elevationFeet: null,
+        difficulty: "Varies",
+        accessNote:
+          "Verify current access, closures, permits and activity rules before leaving.",
+      });
+    }
+
+    console.log(
+      "PHOTON CANDIDATES:",
+      candidates.length
+    );
+
+    return candidates
+      .sort(
+        (a, b) =>
+          a.distanceMiles -
+          b.distanceMiles
+      )
+      .slice(0, 16);
+  } catch (error) {
+    console.warn(
+      "PHOTON ERROR:",
+      error instanceof Error
+        ? error.message
+        : error
+    );
+
+    return [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+
+type AiOffRoadPlace = {
+  name: string;
+  geocodeName?: string;
+  region?: string;
+  kind?: string;
+  latitude?: number;
+  longitude?: number;
+  difficulty?: string;
+  accessNote?: string;
+};
+
+async function findAiOffRoadPlaces(
+  startingLocation: string,
+  startingLatitude: number,
+  startingLongitude: number,
+  activity: string,
+  radiusMiles: number,
+  skill: string,
+  when: string,
+  minDistanceMiles = 0,
+  maxDistanceMiles = radiusMiles,
+  requestedCount = 12
+): Promise<AiOffRoadPlace[]> {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error(
+      "OPENAI_API_KEY is missing from .env.local."
+    );
+  }
+
+  const openai = new OpenAI({
+    apiKey,
+  });
+
+  const prompt = `
+You are the regional destination discovery engine for TrippinDays Off the Road.
+
+STARTING LOCATION:
+${startingLocation}
+
+AUTHORITATIVE STARTING GPS:
+Latitude: ${startingLatitude}
+Longitude: ${startingLongitude}
+
+ACTIVITY:
+${activity}
+
+SEARCH RADIUS:
+${radiusMiles} miles
+
+SKILL / DIFFICULTY:
+${skill}
+
+WHEN:
+${when}
+
+TODAY:
+${new Date().toISOString().slice(0, 10)}
+
+GOAL:
+Return up to ${requestedCount} REAL, NAMED outdoor recreation destinations that fit the selected activity.
+
+REQUIRED DISTANCE BAND:
+- Every returned destination should be approximately ${minDistanceMiles} to ${maxDistanceMiles} miles from the authoritative starting GPS.
+- This is a REQUIRED search band, not merely a maximum.
+- Do not fill this response with closer destinations when minDistanceMiles is greater than 0.
+- Search the full compass around the starting point: north, south, east, and west when geography allows.
+- If there are fewer real matching destinations in this exact band, return fewer rather than inventing places.
+- The server will independently calculate straight-line distance from the returned coordinates and reject places outside this band.
+- SEARCH RADIUS (${radiusMiles} miles) remains the overall absolute maximum.
+
+LOCATION RULES:
+- Treat the GPS coordinates as the authoritative starting point.
+- If STARTING LOCATION says "Current Location", do NOT interpret those words as a geographic place.
+- Search the real surrounding region from the GPS coordinates.
+- Do not return the starting town merely because it is nearby.
+- Prefer recognizable named destinations, trail systems, recreation areas, parks, forests, resorts, OHV areas, climbing areas, caves, peaks, or practical access areas.
+- Do NOT invent a place.
+- Return approximate decimal latitude and longitude for the actual recreation destination or practical access area.
+- Do not intentionally return a destination outside the requested radius.
+- Never claim a road, trail, park, cave, slope, riding area, or hunting area is currently open unless live official information was actually checked.
+- accessNote must be cautious. Use language such as "Verify current access, closures, permits and activity rules before leaving."
+- If exact difficulty varies by route, return "Varies".
+
+ACTIVITY-SPECIFIC RULES:
+
+Hiking:
+- Return genuine hiking destinations, trail systems, trailheads, parks, forests, preserves, or named hiking areas.
+
+Backpacking:
+- Prefer areas with real multi-mile or overnight backcountry trail opportunities.
+
+Trail Running:
+- Return real trail systems or parks suitable for trail running.
+
+Dog-Friendly Trails:
+- Return real trail areas where dogs are commonly allowed or where dog access can reasonably be verified before leaving.
+- Never promise dogs are permitted; note that current rules should be checked.
+
+Mountain Biking:
+- Return real mountain-bike trail systems, parks, forests, or riding areas.
+
+Gravel Biking:
+- Return real gravel-road, forest-road, rail-trail, or mixed-surface cycling areas.
+
+Fat-Tire Biking:
+- Return real areas used for fat-tire riding, snow riding, beaches, or soft-surface riding where regionally appropriate.
+
+ATV / UTV:
+- Return genuine OHV/ORV parks, state-forest motorized trail systems, designated ATV/UTV areas, or legal motorized recreation areas.
+- Do not return a generic park just because it is outdoors.
+
+Dirt Bikes:
+- Return genuine dirt-bike, motorcycle-OHV, motocross, ORV, or motorized trail destinations.
+- Prefer named ORV parks, motocross facilities, state-forest motorized trail systems, or designated motorcycle riding areas.
+- Do NOT return generic hiking trails, city parks, ordinary roads, or non-motorized recreation areas.
+- Do not claim dirt-bike access is legal today; tell the user to verify current motorized-use rules and closures.
+
+4x4 / Off-Road:
+- Return genuine 4x4, ORV, Jeep, forest-road, or designated motorized route systems.
+- Avoid ordinary paved-road destinations.
+
+Overlanding:
+- Return practical backcountry driving areas, forest-road systems, public-land corridors, or camping-oriented motorized destinations.
+
+Horseback Riding:
+- Return equestrian trail systems, horse camps, public riding areas, or guided trail-riding destinations.
+
+Caving / Spelunking:
+- Return genuine caves, cave parks, permitted cave systems, or established cave-tour areas.
+- Never imply unrestricted wild-cave access.
+
+Mountaineering:
+- Return real mountains, alpine routes, climbing areas, or mountaineering destinations appropriate to the region.
+
+Rock Climbing:
+- Return genuine crags, climbing parks, climbing areas, cliffs, or established rock-climbing destinations.
+
+Bouldering:
+- Return genuine bouldering areas, boulder fields, climbing parks, or established climbing destinations with bouldering.
+
+Downhill Skiing:
+- Return real ski resorts or lift-served downhill ski areas.
+
+Snowboarding:
+- Return real ski resorts or snowboard areas.
+
+Cross-Country Skiing:
+- Return real Nordic centers, groomed Nordic systems, or established cross-country ski areas.
+
+Snowshoeing:
+- Return real winter trail systems or recreation areas commonly used for snowshoeing.
+
+Snowmobiling:
+- Return genuine designated snowmobile trail systems, sno-parks, or motorized winter recreation areas.
+
+Sledding / Tubing:
+- Return genuine tubing parks, sledding hills, ski-area tubing operations, or established winter recreation areas.
+
+Seasonal Picks:
+- Return outdoor destinations that make practical seasonal sense for the selected region and date.
+
+Surprise Me:
+- Return a varied mix of real regional Off the Road destinations.
+
+OUTPUT RULES:
+- Return JSON only.
+- No markdown.
+- No explanation outside JSON.
+- Every place must have a name, latitude, and longitude.
+- kind should describe the destination type, such as "ORV Park", "Motorized Trail System", "Trail System", "Climbing Area", "Ski Area", etc.
+- region should be a useful city/county/state or regional label when known.
+- difficulty must be one of "Beginner", "Intermediate", "Advanced", "Expert", or "Varies".
+- accessNote should be concise and cautious.
+
+Return exactly this shape:
+
+{
+  "places": [
+    {
+      "name": "Example Recreation Area",
+      "geocodeName": "Example Recreation Area, Washington",
+      "region": "Washington",
+      "kind": "Motorized Trail System",
+      "latitude": 46.0000,
+      "longitude": -123.0000,
+      "difficulty": "Varies",
+      "accessNote": "Verify current access, closures, permits and activity rules before leaving."
+    }
+  ]
+}
+`.trim();
+
+  const response = await openai.responses.create({
+    model: "gpt-5.6-luna",
+    reasoning: {
+      effort: "none",
+    },
+    text: {
+      verbosity: "low",
+    },
+    input: prompt,
+  });
+
+  const output = response.output_text || "";
+  const firstBrace = output.indexOf("{");
+  const lastBrace = output.lastIndexOf("}");
+
+  if (
+    firstBrace === -1 ||
+    lastBrace === -1
+  ) {
+    throw new Error(
+      "Off the Road destination discovery did not return valid data."
+    );
+  }
+
+  const jsonText = output
+    .slice(firstBrace, lastBrace + 1)
+    .replace(/,\s*}/g, "}")
+    .replace(/,\s*]/g, "]");
+
+  const parsed = JSON.parse(jsonText);
+
+  if (!Array.isArray(parsed?.places)) {
+    return [];
+  }
+
+  return parsed.places
+    .filter(
+      (place: any) =>
+        typeof place?.name === "string" &&
+        Number.isFinite(Number(place?.latitude)) &&
+        Number.isFinite(Number(place?.longitude))
+    )
+    .map(
+      (place: any): AiOffRoadPlace => ({
+        name: place.name.trim(),
+        geocodeName:
+          typeof place.geocodeName === "string"
+            ? place.geocodeName.trim()
+            : undefined,
+        region:
+          typeof place.region === "string"
+            ? place.region.trim()
+            : undefined,
+        kind:
+          typeof place.kind === "string"
+            ? place.kind.trim()
+            : undefined,
+        latitude: Number(place.latitude),
+        longitude: Number(place.longitude),
+        difficulty:
+          place.difficulty === "Beginner" ||
+          place.difficulty === "Intermediate" ||
+          place.difficulty === "Advanced" ||
+          place.difficulty === "Expert" ||
+          place.difficulty === "Varies"
+            ? place.difficulty
+            : "Varies",
+        accessNote:
+          typeof place.accessNote === "string" &&
+          place.accessNote.trim()
+            ? place.accessNote.trim()
+            : "Verify current access, closures, permits and activity rules before leaving.",
+      })
+    )
+    .slice(0, requestedCount);
+}
+
+function aiPlacesToCandidates(
+  places: AiOffRoadPlace[],
+  originLat: number,
+  originLon: number,
+  radiusMiles: number,
+  activity: string
+): Candidate[] {
+  const seen = new Set<string>();
+  const candidates: Candidate[] = [];
+
+  for (const place of places) {
+    const latitude = Number(place.latitude);
+    const longitude = Number(place.longitude);
+
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude)
+    ) {
+      continue;
+    }
+
+    const distance = distanceMiles(
+      originLat,
+      originLon,
+      latitude,
+      longitude
+    );
+
+    /*
+      Keep a very small coordinate tolerance because model-provided
+      coordinates may represent the center of a large trail system.
+    */
+    if (distance > radiusMiles + 5) {
+      continue;
+    }
+
+    const key =
+      `${place.name.toLowerCase()}:` +
+      `${latitude.toFixed(3)}:` +
+      `${longitude.toFixed(3)}`;
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+
+    candidates.push({
+      name: place.name,
+      region: place.region,
+      latitude,
+      longitude,
+      kind:
+        place.kind ||
+        kindForActivity(activity),
+      distanceMiles:
+        Math.round(distance * 10) / 10,
+      priority: 0,
+      elevationFeet: null,
+      difficulty:
+        place.difficulty || "Varies",
+      accessNote:
+        place.accessNote ||
+        "Verify current access, closures, permits and activity rules before leaving.",
+    });
+  }
+
+  return candidates
+    .sort(
+      (a, b) =>
+        a.distanceMiles -
+        b.distanceMiles
+    )
+    .slice(0, 16);
+}
+
+
+function selectAcrossRadius(
+  candidates: Candidate[],
+  radiusMiles: number,
+  limit = 18
+): Candidate[] {
+  if (!candidates.length) {
+    return [];
+  }
+
+  const innerEnd = radiusMiles / 3;
+  const middleEnd = (radiusMiles * 2) / 3;
+
+  const inner = candidates
+    .filter(
+      (item) =>
+        item.distanceMiles <= innerEnd
+    )
+    .sort(
+      (a, b) =>
+        a.distanceMiles -
+        b.distanceMiles
+    );
+
+  const middle = candidates
+    .filter(
+      (item) =>
+        item.distanceMiles > innerEnd &&
+        item.distanceMiles <= middleEnd
+    )
+    .sort(
+      (a, b) =>
+        a.distanceMiles -
+        b.distanceMiles
+    );
+
+  const outer = candidates
+    .filter(
+      (item) =>
+        item.distanceMiles > middleEnd &&
+        item.distanceMiles <= radiusMiles + 5
+    )
+    .sort(
+      (a, b) =>
+        b.distanceMiles -
+        a.distanceMiles
+    );
+
+  /*
+    Reserve space for all three distance bands.
+    This prevents a 250-mile search from becoming
+    "the 18 closest places."
+  */
+  const targetPerBand = Math.max(
+    1,
+    Math.floor(limit / 3)
+  );
+
+  const selected: Candidate[] = [];
+
+  selected.push(
+    ...inner.slice(0, targetPerBand)
+  );
+  selected.push(
+    ...middle.slice(0, targetPerBand)
+  );
+  selected.push(
+    ...outer.slice(0, targetPerBand)
+  );
+
+  const selectedKeys = new Set(
+    selected.map(
+      (item) =>
+        `${item.name.toLowerCase()}:${item.latitude.toFixed(3)}:${item.longitude.toFixed(3)}`
     )
   );
 
-  const allElements: OverpassElement[] = [];
-  const elementKeys = new Set<string>();
+  const leftovers = candidates
+    .filter((item) => {
+      const key =
+        `${item.name.toLowerCase()}:${item.latitude.toFixed(3)}:${item.longitude.toFixed(3)}`;
 
-  for (const searchRadius of uniqueRadii) {
+      return !selectedKeys.has(key);
+    })
+    .sort(
+      (a, b) =>
+        a.distanceMiles -
+        b.distanceMiles
+    );
+
+  for (const item of leftovers) {
+    if (selected.length >= limit) {
+      break;
+    }
+
+    selected.push(item);
+  }
+
+  return selected;
+}
+
+async function discoverCandidates(
+  originLat: number,
+  originLon: number,
+  radiusMiles: number,
+  activity: string,
+  startingLocation: string,
+  skill: string,
+  when: string
+) {
+  console.log("OFF ROAD SEARCH START:", {
+    activity,
+    originLat,
+    originLon,
+    radiusMiles,
+    startingLocation,
+    skill,
+    when,
+  });
+
+  /*
+    PRIMARY DISCOVERY:
+    Search distance BANDS separately. A single broad AI request
+    tended to cluster around familiar nearby destinations even
+    when the user selected 150 or 250 miles.
+
+    For larger searches we make three focused discovery calls:
+    inner third, middle third, outer third. Returned coordinates
+    are then measured by the server and must actually fall inside
+    the requested band.
+  */
+  try {
+    const bandSpecs =
+      radiusMiles >= 120
+        ? [
+            {
+              label: "inner",
+              min: 0,
+              max: Math.round(radiusMiles / 3),
+              count: 8,
+            },
+            {
+              label: "middle",
+              min: Math.round(radiusMiles / 3),
+              max: Math.round((radiusMiles * 2) / 3),
+              count: 8,
+            },
+            {
+              label: "outer",
+              min: Math.round((radiusMiles * 2) / 3),
+              max: radiusMiles,
+              count: 10,
+            },
+          ]
+        : [
+            {
+              label: "full",
+              min: 0,
+              max: radiusMiles,
+              count: 16,
+            },
+          ];
+
+    const discoveredBands =
+      await Promise.all(
+        bandSpecs.map(async (band) => {
+          try {
+            const places =
+              await findAiOffRoadPlaces(
+                startingLocation,
+                originLat,
+                originLon,
+                activity,
+                radiusMiles,
+                skill,
+                when,
+                band.min,
+                band.max,
+                band.count
+              );
+
+            const candidates =
+              aiPlacesToCandidates(
+                places,
+                originLat,
+                originLon,
+                radiusMiles,
+                activity
+              ).filter((candidate) => {
+                /*
+                  Enforce the requested band ourselves.
+                  Give model coordinates a small 5-mile tolerance
+                  at the band boundaries, but never beyond the
+                  overall selected radius.
+                */
+                const bandMin =
+                  Math.max(0, band.min - 5);
+
+                const bandMax =
+                  Math.min(
+                    radiusMiles + 5,
+                    band.max + 5
+                  );
+
+                return (
+                  candidate.distanceMiles >=
+                    bandMin &&
+                  candidate.distanceMiles <=
+                    bandMax
+                );
+              });
+
+            console.log(
+              `OFF ROAD AI ${band.label.toUpperCase()} BAND:`,
+              {
+                requested:
+                  `${band.min}-${band.max}`,
+                found:
+                  candidates.map((item) => ({
+                    name: item.name,
+                    miles:
+                      item.distanceMiles,
+                  })),
+              }
+            );
+
+            return candidates;
+          } catch (error) {
+            console.error(
+              `OFF ROAD AI ${band.label.toUpperCase()} BAND ERROR:`,
+              error
+            );
+
+            return [];
+          }
+        })
+      );
+
+    const combined =
+      discoveredBands.flat();
+
+    const seen = new Set<string>();
+    const uniqueAiCandidates: Candidate[] =
+      [];
+
+    for (const candidate of combined) {
+      const key =
+        `${candidate.name.toLowerCase()}:` +
+        `${candidate.latitude.toFixed(3)}:` +
+        `${candidate.longitude.toFixed(3)}`;
+
+      if (seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      uniqueAiCandidates.push(candidate);
+    }
+
+    if (uniqueAiCandidates.length) {
+      const balanced =
+        selectAcrossRadius(
+          uniqueAiCandidates,
+          radiusMiles,
+          20
+        );
+
+      console.log(
+        "OFF ROAD SEGMENTED AI CANDIDATES:",
+        balanced.map((item) => ({
+          name: item.name,
+          miles: item.distanceMiles,
+        }))
+      );
+
+      return balanced;
+    }
+  } catch (error) {
+    console.error(
+      "OFF ROAD SEGMENTED AI DISCOVERY ERROR:",
+      error
+    );
+  }
+
+  /*
+    SECONDARY FALLBACK:
+    Keep Photon/Overpass available only if AI discovery fails.
+    A public map provider outage should no longer be the normal
+    path for every Find My Best search.
+  */
+  try {
+    const photonCandidates =
+      await discoverPhotonCandidates(
+        originLat,
+        originLon,
+        radiusMiles,
+        activity
+      );
+
+    if (photonCandidates.length) {
+      return selectAcrossRadius(
+        photonCandidates,
+        radiusMiles,
+        18
+      );
+    }
+  } catch (error) {
+    console.warn(
+      "OFF ROAD PHOTON FALLBACK ERROR:",
+      error
+    );
+  }
+
+  try {
+    const radiusMeters = Math.round(
+      radiusMiles * 1609.344
+    );
+
     const query = buildOverpassQuery(
       activity,
       originLat,
       originLon,
-      Math.round(searchRadius * 1609.344)
+      radiusMeters
     );
 
     const data = await queryOverpass(query);
-    const elements: OverpassElement[] = data?.elements || [];
 
-    for (const element of elements) {
-      const key = `${element.type}:${element.id}`;
-      if (elementKeys.has(key)) continue;
-      elementKeys.add(key);
-      allElements.push(element);
+    const elements: OverpassElement[] =
+      Array.isArray(data?.elements)
+        ? data.elements
+        : [];
+
+    const overpassCandidates =
+      elementsToCandidates(
+        elements,
+        originLat,
+        originLon,
+        radiusMiles,
+        activity
+      );
+
+    if (overpassCandidates.length) {
+      return selectAcrossRadius(
+        overpassCandidates,
+        radiusMiles,
+        18
+      );
     }
-
-    if (allElements.length >= 20) break;
+  } catch (error) {
+    console.warn(
+      "OFF ROAD OVERPASS FALLBACK ERROR:",
+      error
+    );
   }
 
-  return elementsToCandidates(
-    allElements,
-    originLat,
-    originLon,
-    radiusMiles,
-    activity
-  );
+  return [];
 }
 
 async function fetchForecast(candidate: Candidate) {
@@ -735,6 +1677,118 @@ async function scoreCandidate(
   };
 }
 
+
+type ScoredCandidate = Candidate & {
+  score: number;
+  label: string;
+  bestTime?: string;
+  temperatureF: number | null;
+  wind: number | null;
+  gust: number | null;
+  precipitation: number | null;
+  snowfall: number | null;
+  snowDepth: number | null;
+};
+
+function chooseFinalResults(
+  scored: ScoredCandidate[],
+  radiusMiles: number,
+  limit = 8
+) {
+  const ranked = [...scored].sort(
+    (a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+
+      return (
+        a.distanceMiles -
+        b.distanceMiles
+      );
+    }
+  );
+
+  if (
+    radiusMiles < 75 ||
+    ranked.length <= limit
+  ) {
+    return ranked.slice(0, limit);
+  }
+
+  const innerEnd = radiusMiles / 3;
+  const middleEnd = (radiusMiles * 2) / 3;
+
+  const inner = ranked.filter(
+    (item) =>
+      item.distanceMiles <= innerEnd
+  );
+
+  const middle = ranked.filter(
+    (item) =>
+      item.distanceMiles > innerEnd &&
+      item.distanceMiles <= middleEnd
+  );
+
+  const outer = ranked.filter(
+    (item) =>
+      item.distanceMiles > middleEnd
+  );
+
+  const chosen: ScoredCandidate[] = [];
+
+  /*
+    For larger radii, guarantee visible radius coverage
+    when real scored options exist:
+    - up to 2 strong inner options
+    - up to 3 middle options
+    - up to 3 outer-radius options
+
+    This keeps a 250-mile search from looking like a
+    100-mile search whenever real outer-band matches exist.
+  */
+  chosen.push(...inner.slice(0, 2));
+  chosen.push(...middle.slice(0, 3));
+  chosen.push(...outer.slice(0, 3));
+
+  const keys = new Set(
+    chosen.map(
+      (item) =>
+        `${item.name.toLowerCase()}:${item.latitude.toFixed(3)}:${item.longitude.toFixed(3)}`
+    )
+  );
+
+  for (const item of ranked) {
+    if (chosen.length >= limit) {
+      break;
+    }
+
+    const key =
+      `${item.name.toLowerCase()}:${item.latitude.toFixed(3)}:${item.longitude.toFixed(3)}`;
+
+    if (keys.has(key)) {
+      continue;
+    }
+
+    keys.add(key);
+    chosen.push(item);
+  }
+
+  return chosen
+    .slice(0, limit)
+    .sort(
+      (a, b) => {
+        if (b.score !== a.score) {
+          return b.score - a.score;
+        }
+
+        return (
+          a.distanceMiles -
+          b.distanceMiles
+        );
+      }
+    );
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -746,6 +1800,7 @@ export async function POST(request: NextRequest) {
       250
     );
     const when = String(body?.when || "This Weekend");
+    const skill = String(body?.skill || "Any");
 
     /*
       Hunting is deliberately not treated like a generic trail search.
@@ -774,13 +1829,16 @@ export async function POST(request: NextRequest) {
       origin.latitude,
       origin.longitude,
       radius,
-      activity
+      activity,
+      origin.label || location || "Current Location",
+      skill,
+      when
     );
 
     const scored = (
       await Promise.all(
         candidates
-          .slice(0, 10)
+          .slice(0, 20)
           .map((candidate) =>
             scoreCandidate(candidate, activity, when)
           )
@@ -799,12 +1857,14 @@ export async function POST(request: NextRequest) {
       }
     >;
 
-    const results = scored
-      .sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score;
-        return a.distanceMiles - b.distanceMiles;
-      })
-      .slice(0, 8)
+    const selectedResults =
+      chooseFinalResults(
+        scored as ScoredCandidate[],
+        radius,
+        8
+      );
+
+    const results = selectedResults
       .map((item, index) => ({
         id: `${item.name}-${item.latitude}-${item.longitude}`,
         rank: index + 1,
