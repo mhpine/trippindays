@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import StampGrid from "@/components/passport/StampGrid";
 import StampModal from "@/components/passport/StampModal";
 import SiteHeader from "@/components/SiteHeader";
+import SiteQuickAccess from "@/components/SiteQuickAccess";
 
 import type {
   EarnedStamp,
@@ -297,6 +298,8 @@ export default function PassportPage() {
           </div>
         </div>
       </section>
+
+      <SiteQuickAccess />
 
       {/* =========================
           PASSPORT STATS

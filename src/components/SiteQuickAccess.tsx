@@ -1,118 +1,136 @@
-type QuickItem = {
-  href?: string;
+"use client";
+
+import { usePathname } from "next/navigation";
+
+type QuickAccessItem = {
+  key:
+    | "road-trip"
+    | "water"
+    | "off-road"
+    | "air"
+    | "passport"
+    | "journal"
+    | "community";
+  href: string;
   icon: string;
-  title: string;
-  text: string;
-  premium?: boolean;
-  soon?: boolean;
+  label: string;
+  group: "planner" | "always";
 };
 
-const QUICK_ITEMS: QuickItem[] = [
+const ITEMS: QuickAccessItem[] = [
   {
+    key: "road-trip",
+    href: "/#planner",
+    icon: "🚗",
+    label: "Road Trip",
+    group: "planner",
+  },
+  {
+    key: "water",
     href: "/on-the-water",
     icon: "🌊",
-    title: "On the Water",
-    text: "Find water conditions and adventures near you.",
+    label: "On the Water",
+    group: "planner",
   },
   {
+    key: "off-road",
     href: "/off-the-road",
     icon: "🥾",
-    title: "Off the Road",
-    text: "Find trails, peaks, dirt, snow, and outdoor adventures.",
+    label: "Off the Road",
+    group: "planner",
   },
-{
-  href: "/in-the-air",
-  icon: "✈️",
-  title: "In the Air",
-  text: "Find air adventures and the best conditions near you.",
-},
   {
+    key: "air",
+    href: "/in-the-air",
+    icon: "✈️",
+    label: "In the Air",
+    group: "planner",
+  },
+  {
+    key: "passport",
     href: "/passport",
-    icon: "🛂",
-    title: "Passport",
-    text: "Collect your travel memories.",
+    icon: "📘",
+    label: "Passport",
+    group: "always",
   },
   {
+    key: "journal",
     href: "/journal",
-    icon: "📖",
-    title: "Journal",
-    text: "Save the story of every trip.",
+    icon: "📓",
+    label: "Journal",
+    group: "always",
   },
   {
+    key: "community",
     href: "/community",
-    icon: "🌎",
-    title: "Community",
-    text: "See and share adventures.",
-  },
- 
-  {
-    href: "/saved-trips",
-    icon: "🧳",
-    title: "My Trips",
-    text: "Return to saved adventures.",
+    icon: "👥",
+    label: "Community",
+    group: "always",
   },
 ];
 
-function QuickCard({ item }: { item: QuickItem }) {
-  const base =
-    "relative min-h-[132px] rounded-2xl border bg-white p-4 text-left shadow-sm transition";
+export default function SiteQuickAccess() {
+  const pathname = usePathname();
 
-  const tone = item.premium
-    ? "border-orange-200 hover:-translate-y-0.5 hover:border-orange-400 hover:shadow-lg"
-    : item.soon
-      ? "cursor-default border-slate-200 bg-slate-50/80 opacity-75"
-      : "border-slate-200 hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-lg";
+  const activePlannerKey: QuickAccessItem["key"] | null =
+    pathname === "/" ||
+    pathname === "/trip" ||
+    pathname.startsWith("/trip/")
+      ? "road-trip"
+      : pathname === "/on-the-water" ||
+          pathname.startsWith("/on-the-water/")
+        ? "water"
+        : pathname === "/off-the-road" ||
+            pathname.startsWith("/off-the-road/")
+          ? "off-road"
+          : pathname === "/in-the-air" ||
+              pathname.startsWith("/in-the-air/")
+            ? "air"
+            : null;
 
-  const content = (
-    <>
-      {item.soon && (
-        <span className="absolute right-3 top-3 rounded-full bg-cyan-100 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-cyan-800">
-          Soon
-        </span>
-      )}
+  const activeUtilityKey: QuickAccessItem["key"] | null =
+    pathname === "/passport" ||
+    pathname.startsWith("/passport/")
+      ? "passport"
+      : pathname === "/journal" ||
+          pathname.startsWith("/journal/")
+        ? "journal"
+        : pathname === "/community" ||
+            pathname.startsWith("/community/")
+          ? "community"
+          : null;
 
-      <div className="text-2xl">{item.icon}</div>
+  const visibleItems = ITEMS.filter((item) => {
+    if (item.group === "planner") {
+      return item.key !== activePlannerKey;
+    }
 
-      <div
-        className={`mt-3 text-base font-black ${
-          item.premium ? "text-orange-600" : "text-[#092530]"
-        }`}
-      >
-        {item.title}
-      </div>
+    return item.key !== activeUtilityKey;
+  });
 
-      <p className="mt-1 text-xs leading-5 text-slate-500">{item.text}</p>
-    </>
-  );
-
-  if (!item.href || item.soon) {
-    return (
-      <div className={`${base} ${tone}`} aria-disabled="true">
-        {content}
-      </div>
-    );
-  }
-
-  return (
-    <a href={item.href} className={`${base} ${tone}`}>
-      {content}
-    </a>
-  );
-}
-
-export default function SiteQuickAccess({
-  className = "",
-}: {
-  className?: string;
-}) {
   return (
     <section
-      className={`mx-auto w-full max-w-[1500px] px-4 py-7 sm:px-6 lg:px-8 ${className}`}
-      aria-label="TrippinDays quick access"
+      className="border-y border-slate-200 bg-white"
+      aria-label="Quick access"
     >
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-        {QUICK_ITEMS.map((item) => (
-          <QuickCard key={item.title} item={item} />
+      <div className="mx-auto flex max-w-[1300px] flex-wrap items-center justify-center gap-x-5 gap-y-4 px-4 py-5 sm:gap-x-9">
+        {visibleItems.map((item) => (
+          <a
+            key={item.key}
+            href={item.href}
+            className="group flex min-w-[110px] flex-col items-center justify-center text-center"
+          >
+            <span
+              className="text-3xl transition-transform group-hover:scale-110"
+              aria-hidden="true"
+            >
+              {item.icon}
+            </span>
+
+            <span className="mt-2 text-sm font-black text-slate-800 transition group-hover:text-orange-600 sm:text-base">
+              {item.label}
+            </span>
+          </a>
         ))}
       </div>
     </section>

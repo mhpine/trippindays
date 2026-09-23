@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import SiteHeader from "../../components/SiteHeader";
+import SiteQuickAccess from "@/components/SiteQuickAccess";
 type CommunityPost = {
   id: string;
   user_id: string;
@@ -183,6 +184,8 @@ backgroundPosition: "center",
           </p>
         </div>
       </section>
+
+      <SiteQuickAccess />
 
       <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 lg:grid-cols-[390px_1fr]">
         <aside>
