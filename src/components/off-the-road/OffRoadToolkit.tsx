@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type ToolKey =
   | "compass"
@@ -18,6 +18,7 @@ type ToolKey =
   | "camping"
   | "fuel-food"
   | "navigation"
+  | "whistle"
   | "safety";
 
 type ToolMeta = {
@@ -187,6 +188,12 @@ const TOOLS: ToolMeta[] = [
     description: "Current position and map/navigation links",
   },
   {
+    key: "whistle",
+    icon: "📣",
+    title: "Lost Hiker Whistle",
+    description: "Three-blast emergency whistle signal that repeats",
+  },
+  {
     key: "safety",
     icon: "🆘",
     title: "Safety",
@@ -275,6 +282,11 @@ export default function OffRoadToolkit() {
   const [compassPermissionDenied, setCompassPermissionDenied] = useState(false);
   const [compassPermissionGranted, setCompassPermissionGranted] = useState(false);
 
+  const [whistleActive, setWhistleActive] = useState(false);
+  const [whistleError, setWhistleError] = useState("");
+  const whistleAudioRef = useRef<AudioContext | null>(null);
+  const whistleTimerRef = useRef<number | null>(null);
+
   const direction = useMemo(
     () => cardinalDirection(heading),
     [heading]
@@ -335,6 +347,115 @@ export default function OffRoadToolkit() {
     };
   }, [activeTool, compassPermissionGranted]);
 
+  useEffect(() => {
+    return () => {
+      if (whistleTimerRef.current != null) {
+        window.clearInterval(whistleTimerRef.current);
+        whistleTimerRef.current = null;
+      }
+
+      const context = whistleAudioRef.current;
+      whistleAudioRef.current = null;
+
+      if (context && context.state !== "closed") {
+        void context.close();
+      }
+    };
+  }, []);
+
+  function playWhistlePattern(context: AudioContext) {
+    const patternStart = context.currentTime + 0.05;
+    const blastOffsets = [0, 1.45, 2.9];
+
+    blastOffsets.forEach((offset) => {
+      const start = patternStart + offset;
+      const stop = start + 1.0;
+
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(2550, start);
+      oscillator.frequency.linearRampToValueAtTime(2750, stop);
+
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.9, start + 0.04);
+      gain.gain.setValueAtTime(0.9, stop - 0.08);
+      gain.gain.linearRampToValueAtTime(0, stop);
+
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+
+      oscillator.start(start);
+      oscillator.stop(stop + 0.03);
+    });
+  }
+
+  function stopWhistle() {
+    if (whistleTimerRef.current != null) {
+      window.clearInterval(whistleTimerRef.current);
+      whistleTimerRef.current = null;
+    }
+
+    const context = whistleAudioRef.current;
+    whistleAudioRef.current = null;
+
+    if (context && context.state !== "closed") {
+      void context.close();
+    }
+
+    setWhistleActive(false);
+  }
+
+  async function startWhistle() {
+    setWhistleError("");
+
+    try {
+      type AudioContextConstructor = new () => AudioContext;
+
+      const audioWindow = window as typeof window & {
+        webkitAudioContext?: AudioContextConstructor;
+      };
+
+      const AudioContextCtor: AudioContextConstructor | undefined =
+        window.AudioContext || audioWindow.webkitAudioContext;
+
+      if (!AudioContextCtor) {
+        setWhistleError(
+          "This browser does not support the emergency whistle audio tool."
+        );
+        return;
+      }
+
+      stopWhistle();
+
+      const context = new AudioContextCtor();
+      whistleAudioRef.current = context;
+
+      if (context.state === "suspended") {
+        await context.resume();
+      }
+
+      playWhistlePattern(context);
+      setWhistleActive(true);
+
+      whistleTimerRef.current = window.setInterval(() => {
+        if (context.state === "closed") return;
+
+        if (context.state === "suspended") {
+          void context.resume();
+        }
+
+        playWhistlePattern(context);
+      }, 30000);
+    } catch {
+      stopWhistle();
+      setWhistleError(
+        "The whistle could not start. Make sure your phone volume is turned up and try again."
+      );
+    }
+  }
+
   async function enableCompass() {
     try {
       const DeviceOrientationEventAny =
@@ -369,7 +490,7 @@ export default function OffRoadToolkit() {
     tool: ToolKey,
     coords: LocationState
   ) {
-    if (tool === "compass") return;
+    if (tool === "compass" || tool === "whistle") return;
 
     setToolLoading(true);
     setToolError("");
@@ -468,7 +589,7 @@ export default function OffRoadToolkit() {
     setLocationError("");
     setPayload(null);
 
-    if (tool === "compass") return;
+    if (tool === "compass" || tool === "whistle") return;
 
     if (location) {
       void loadTool(tool, location);
@@ -478,7 +599,7 @@ export default function OffRoadToolkit() {
   }
 
   async function refreshActiveTool() {
-    if (!activeTool || activeTool === "compass") return;
+    if (!activeTool || activeTool === "compass" || activeTool === "whistle") return;
 
     if (location) {
       await loadTool(activeTool, location);
@@ -525,6 +646,7 @@ export default function OffRoadToolkit() {
   }
 
   function closeToolkit() {
+    stopWhistle();
     setOpen(false);
     setActiveTool(null);
     setPayload(null);
@@ -595,6 +717,9 @@ export default function OffRoadToolkit() {
                     <button
                       type="button"
                       onClick={() => {
+                        if (activeTool === "whistle") {
+                          stopWhistle();
+                        }
                         setActiveTool(null);
                         setPayload(null);
                         setToolError("");
@@ -605,7 +730,7 @@ export default function OffRoadToolkit() {
                       ← Back to Toolkit
                     </button>
 
-                    {activeTool !== "compass" && (
+                    {activeTool !== "compass" && activeTool !== "whistle" && (
                       <button
                         type="button"
                         onClick={() => void refreshActiveTool()}
@@ -702,6 +827,89 @@ export default function OffRoadToolkit() {
                       <p className="mt-5 text-xs leading-5 text-stone-500">
                         Phone compasses can be affected by magnets, vehicles and nearby metal. Use a dedicated navigation device or paper map for critical backcountry navigation.
                       </p>
+                    </div>
+                  ) : activeTool === "whistle" ? (
+                    <div className="space-y-4">
+                      <div
+                        className={`rounded-3xl border p-6 text-center shadow-sm ${
+                          whistleActive
+                            ? "border-red-300 bg-red-50"
+                            : "border-stone-200 bg-white"
+                        }`}
+                      >
+                        <div className="text-6xl">📣</div>
+
+                        <div
+                          className={`mt-4 text-xs font-black uppercase tracking-[0.2em] ${
+                            whistleActive ? "text-red-700" : "text-[#52683d]"
+                          }`}
+                        >
+                          {whistleActive
+                            ? "Emergency Signal Active"
+                            : "Emergency Signal Ready"}
+                        </div>
+
+                        <h4 className="mt-2 text-2xl font-black text-stone-900">
+                          Three-Blast Whistle
+                        </h4>
+
+                        <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-stone-600">
+                          Plays three loud electronic whistle blasts, then repeats
+                          the pattern every 30 seconds until you stop it.
+                        </p>
+
+                        <div className="mt-5 rounded-2xl bg-stone-100 p-4 text-left text-sm font-semibold leading-6 text-stone-700">
+                          <div className="font-black text-stone-900">
+                            Signal pattern
+                          </div>
+                          <div className="mt-1">
+                            📣 Blast • 📣 Blast • 📣 Blast
+                          </div>
+                          <div className="mt-1 text-xs text-stone-500">
+                            About 1 second per blast, then approximately 26 seconds
+                            of quiet before the next three-blast cycle.
+                          </div>
+                        </div>
+
+                        {whistleError && (
+                          <div className="mt-4 rounded-2xl border border-red-200 bg-red-100 p-4 text-sm font-semibold text-red-900">
+                            {whistleError}
+                          </div>
+                        )}
+
+                        {!whistleActive ? (
+                          <button
+                            type="button"
+                            onClick={() => void startWhistle()}
+                            className="mt-5 w-full rounded-2xl bg-red-700 px-5 py-4 text-lg font-black text-white shadow-lg transition hover:bg-red-800"
+                          >
+                            ▶ START LOST HIKER WHISTLE
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={stopWhistle}
+                            className="mt-5 w-full rounded-2xl bg-stone-950 px-5 py-4 text-lg font-black text-white shadow-lg transition hover:bg-black"
+                          >
+                            ■ STOP WHISTLE
+                          </button>
+                        )}
+
+                        <p className="mt-4 text-xs font-semibold leading-5 text-stone-500">
+                          Turn your phone volume all the way up. Keep TrippinDays
+                          open and the screen awake when possible; mobile browsers
+                          may pause audio if the phone locks or the app moves to the
+                          background.
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 text-xs font-semibold leading-5 text-orange-900">
+                        <span className="font-black">Emergency note:</span>{" "}
+                        This is a signaling aid, not a replacement for 911,
+                        satellite SOS, a personal locator beacon, or a physical
+                        whistle. Three blasts are commonly used as a distress
+                        signal, but local practices can vary.
+                      </div>
                     </div>
                   ) : (
                     <>
