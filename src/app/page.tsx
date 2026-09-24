@@ -1484,8 +1484,11 @@ ${combinedTripRequest}
         </div>
       </section>
 
+      {/* QUICK ACCESS */}
+      <SiteQuickAccess />
+
       {/* PLANNER */}
-      <section className="relative z-30 -mt-10 px-4 sm:-mt-12 sm:px-5 lg:-mt-14 lg:px-8">
+      <section className="relative z-30 px-4 py-8 sm:px-5 lg:px-8">
         <div
           id="planner"
           className="mx-auto w-full max-w-[1320px] rounded-[28px] bg-white/95 p-5 text-[#092530] shadow-2xl backdrop-blur-md sm:p-7"
@@ -1888,9 +1891,6 @@ ${combinedTripRequest}
           </div>
         </div>
       </section>
-
-     {/* QUICK ACCESS */}
-<SiteQuickAccess />
 
       {/* ADVENTURES NEAR YOU */}
       <section

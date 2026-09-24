@@ -1833,6 +1833,8 @@ backgroundPosition: "center 70%",
         </div>
       </section>
 
+      <SiteQuickAccess />
+
       <div className="mx-auto max-w-7xl space-y-10 px-4 py-8 sm:px-6 lg:px-8">
         {/* CATEGORY NAV */}
         <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-7">
@@ -1931,7 +1933,7 @@ backgroundPosition: "center 70%",
             })}
           </div>
         </section>
-  <SiteQuickAccess />
+
         {/* FIND MY BEST */}
         <section id="off-road-planner" className="scroll-mt-24 overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
           <div className="grid lg:grid-cols-[1.15fr_.85fr]">
