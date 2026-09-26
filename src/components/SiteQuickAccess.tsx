@@ -56,7 +56,7 @@ const ITEMS: QuickAccessItem[] = [
   {
     key: "journal",
     href: "/journal",
-    icon: "📓",
+    icon: "📖",
     label: "Journal",
     group: "always",
   },
@@ -118,6 +118,7 @@ export default function SiteQuickAccess() {
           <a
             key={item.key}
             href={item.href}
+            aria-label={item.label}
             className="group flex min-w-[110px] flex-col items-center justify-center text-center"
           >
             <span
