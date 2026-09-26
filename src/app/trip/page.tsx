@@ -206,6 +206,7 @@ async function getPlanAuthHeaders() {
 
   return {
     "Content-Type": "application/json",
+    Accept: "application/json",
     ...(session?.access_token
       ? {
           Authorization:
@@ -213,6 +214,138 @@ async function getPlanAuthHeaders() {
         }
       : {}),
   };
+}
+
+const PLAN_RETRY_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+function waitForPlanRetry(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function fetchPlanJson(
+  endpoint: string,
+  payload: Record<string, unknown>
+) {
+  const maxAttempts = 2;
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 90000);
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: await getPlanAuthHeaders(),
+        body: JSON.stringify(payload),
+        cache: "no-store",
+        signal: controller.signal,
+      });
+
+      const raw = await response.text();
+      let data: any = null;
+
+      if (raw.trim()) {
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          const preview = raw.replace(/\s+/g, " ").trim().slice(0, 240);
+
+          console.error("PLAN API NON-JSON RESPONSE:", {
+            endpoint,
+            status: response.status,
+            contentType: response.headers.get("content-type"),
+            url: response.url,
+            preview,
+          });
+
+          lastError = new Error(
+            `Trip service returned a web page instead of trip data${
+              response.status ? ` (HTTP ${response.status})` : ""
+            }. Your trip request is still saved. Tap Try Again.`
+          );
+
+          if (attempt < maxAttempts - 1) {
+            await waitForPlanRetry(900);
+            continue;
+          }
+
+          throw lastError;
+        }
+      }
+
+      if (!response.ok) {
+        const message =
+          data?.error ||
+          data?.message ||
+          `Trip service failed (HTTP ${response.status}).`;
+
+        lastError = new Error(message);
+
+        if (
+          attempt < maxAttempts - 1 &&
+          PLAN_RETRY_STATUSES.has(response.status)
+        ) {
+          await waitForPlanRetry(900);
+          continue;
+        }
+
+        throw lastError;
+      }
+
+      if (!data || typeof data !== "object") {
+        lastError = new Error(
+          "Trip service returned an empty response. Your trip request is still saved. Tap Try Again."
+        );
+
+        if (attempt < maxAttempts - 1) {
+          await waitForPlanRetry(900);
+          continue;
+        }
+
+        throw lastError;
+      }
+
+      return data;
+    } catch (error) {
+      const wasAborted =
+        error instanceof DOMException
+          ? error.name === "AbortError"
+          : error instanceof Error && error.name === "AbortError";
+
+      const normalizedError = wasAborted
+        ? new Error(
+            "Trip planning took too long to respond. Your trip request is still saved. Tap Try Again."
+          )
+        : error instanceof Error
+          ? error
+          : new Error("Could not reach the trip service.");
+
+      lastError = normalizedError;
+
+      const networkFailure =
+        wasAborted ||
+        error instanceof TypeError;
+
+      if (attempt < maxAttempts - 1 && networkFailure) {
+        await waitForPlanRetry(900);
+        continue;
+      }
+
+      throw normalizedError;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+
+  throw (
+    lastError ||
+    new Error(
+      "Could not reach the trip service. Your trip request is still saved. Tap Try Again."
+    )
+  );
 }
 
 export default function TripPage() {
@@ -744,20 +877,12 @@ const offRoadPremiumRequest =
 const planEndpoint = offRoadPremiumRequest
   ? "/api/off-the-road/premium-plan"
   : "/api/plan";
-      const response = await fetch(planEndpoint, {
-        method: "POST",
-        headers: await getPlanAuthHeaders(),
-        body: JSON.stringify({
-  tripRequest: savedRequest,
-  recentDestinations: recentForRequest,
-}),
+      const data = await fetchPlanJson(planEndpoint, {
+        tripRequest: savedRequest,
+        recentDestinations: recentForRequest,
       });
 
-      const data = await response.json();
-console.log("BUDGET BREAKDOWN:", data.budgetBreakdown);
-      if (!response.ok) {
-        throw new Error(data.error || "Could not build your trip.");
-      }
+      console.log("BUDGET BREAKDOWN:", data.budgetBreakdown);
 
       setAiPlan(data.plan || "");
       setDetourStops(
@@ -1102,19 +1227,11 @@ distances, costs, food, activities, parking, weather considerations,
 return time, and RoadTunes music suggestions.
     `.trim();
 
-    const response = await fetch("/api/plan", {
-      method: "POST",
-      headers: await getPlanAuthHeaders(),
-      body: JSON.stringify({
-        tripRequest: remixRequest,
-      }),
+    const data = await fetchPlanJson("/api/plan", {
+      tripRequest: remixRequest,
     });
 
-    const data = await response.json();
-console.log("BUDGET BREAKDOWN:", data.budgetBreakdown);
-    if (!response.ok) {
-      throw new Error(data.error || "Could not remix your trip.");
-    }
+    console.log("BUDGET BREAKDOWN:", data.budgetBreakdown);
 
     setAiPlan(data.plan || aiPlan);
     setDetourStops(
@@ -1412,9 +1529,23 @@ function scrollToPreviousSection() {
           <section className="rounded-3xl border border-red-400/30 bg-red-500/10 p-8">
             <h1 className="text-3xl font-black">We couldn&apos;t build that trip</h1>
             <p className="mt-3 text-red-100/80">{error}</p>
-            <a href="/" className="mt-6 inline-block rounded-2xl bg-sky-500 px-6 py-4 font-black">
-              Return Home
-            </a>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void buildTrip(request, recentDestinations)}
+                className="rounded-2xl bg-orange-500 px-6 py-4 font-black text-white hover:bg-orange-400"
+              >
+                Try Again
+              </button>
+
+              <a
+                href="/"
+                className="inline-block rounded-2xl bg-sky-500 px-6 py-4 font-black"
+              >
+                Return Home
+              </a>
+            </div>
           </section>
         )}
 
