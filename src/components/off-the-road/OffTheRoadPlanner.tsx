@@ -1329,6 +1329,96 @@ export default function OffTheRoadPlanner() {
     }
   }
 
+  function planOffRoadResult(place: OffRoadResult) {
+    const startName =
+      startingLocation.trim() ||
+      location?.name ||
+      deviceLocation?.shortLabel ||
+      deviceLocation?.label ||
+      "Current Location";
+
+    const startLatitude =
+      location?.latitude ??
+      deviceLocation?.latitude;
+    const startLongitude =
+      location?.longitude ??
+      deviceLocation?.longitude;
+
+    const authoritativeGps =
+      startLatitude != null &&
+      startLongitude != null
+        ? `AUTHORITATIVE STARTING GPS:
+Latitude: ${startLatitude}
+Longitude: ${startLongitude}
+Use these coordinates as the actual starting point.`
+        : "";
+
+    const destinationGps =
+      Number.isFinite(place.latitude) &&
+      Number.isFinite(place.longitude)
+        ? `DESTINATION GPS:
+Latitude: ${place.latitude}
+Longitude: ${place.longitude}
+Use this exact destination.`
+        : "";
+
+    const requestText = `
+Starting Location: ${startName}
+${authoritativeGps}
+
+Destination: ${place.name}
+Region: ${place.region || place.category || ""}
+${destinationGps}
+
+Activity: ${activity}
+Skill Level: ${skill}
+When: ${when}
+Search Radius: ${radius} miles
+Estimated Distance From Start: ${Math.round(
+      place.distanceMiles
+    )} miles
+Difficulty: ${place.difficulty || "Varies"}
+Elevation: ${
+      place.elevationFeet == null
+        ? "Unknown"
+        : `${Math.round(
+            place.elevationFeet
+          ).toLocaleString()} ft`
+    }
+Known Access Note: ${
+      place.accessNote ||
+      "Verify current access, closures, permits and trail rules before leaving."
+    }
+
+Trip Request:
+OFF THE ROAD — PLAN THIS TRIP.
+
+Build a practical TrippinDays itinerary around this exact destination and selected activity.
+
+Keep ${place.name} as the destination. Do not silently replace it with another destination.
+
+Include:
+- a realistic departure and arrival schedule
+- route and mileage
+- the selected activity with sensible timing
+- trailhead, parking and access information when available
+- current/forecast weather considerations when reliable data is available
+- terrain and elevation considerations
+- food and fuel stops when useful
+- estimated trip costs
+- permits, passes and access checks
+- a practical equipment and safety checklist
+- a backup plan if weather or access makes the primary activity unsafe
+- a final Check Before Leaving section
+
+Do not invent current closures, permit availability, business hours or road conditions. Clearly identify anything that requires an official live check.
+    `.trim();
+
+    setSelectedId(place.id);
+    setMessage(`Planning ${place.name}...`);
+    sendPremiumTripRequest(requestText);
+  }
+
  async function launchOffRoadPremium(
     mode:
       | "intel"
@@ -2465,19 +2555,15 @@ backgroundPosition: "center 70%",
                         </div>
                       </button>
 
-                      {isSelected &&
-                        !premiumLoading &&
-                        isPremium && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              void launchOffRoadPremium("full");
-                            }}
-                            className="w-full rounded-2xl bg-orange-500 px-5 py-3.5 text-sm font-black text-white shadow-sm transition hover:bg-orange-600"
-                          >
-                            PLAN THIS TRIP — {place.name} →
-                          </button>
-                        )}
+                      {isSelected && (
+                        <button
+                          type="button"
+                          onClick={() => planOffRoadResult(place)}
+                          className="w-full rounded-2xl bg-orange-500 px-5 py-3.5 text-sm font-black text-white shadow-sm transition hover:bg-orange-600"
+                        >
+                          PLAN THIS TRIP — {place.name} →
+                        </button>
+                      )}
                     </div>
                   );
                 })
